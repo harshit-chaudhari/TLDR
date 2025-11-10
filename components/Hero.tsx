@@ -5,22 +5,20 @@ import Image from 'next/image';
 import { top10Movies, top10Shows, newReleaseMovies, newReleaseShows } from '@/data/content';
 
 export default function Hero() {
-  const [currentPosterIndex, setCurrentPosterIndex] = useState(0);
+  const [featuredIndex, setFeaturedIndex] = useState(0);
 
   // Combine all content for poster showcase
   const allContent = [...top10Movies, ...top10Shows, ...newReleaseMovies, ...newReleaseShows];
+  const showcasePosters = allContent.slice(0, 20);
 
-  // Get a curated selection of posters (first 12 for variety)
-  const showcasePosters = allContent.slice(0, 12);
-
-  // Auto-rotate posters
+  // Auto-rotate featured poster
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentPosterIndex((prev) => (prev + 1) % showcasePosters.length);
-    }, 3000); // Change every 3 seconds
+      setFeaturedIndex((prev) => (prev + 1) % 8);
+    }, 5000);
 
     return () => clearInterval(interval);
-  }, [showcasePosters.length]);
+  }, []);
 
   const scrollToContent = () => {
     const contentSection = document.getElementById('content-section');
@@ -29,96 +27,120 @@ export default function Hero() {
     }
   };
 
+  const featuredContent = showcasePosters.slice(0, 8);
+  const backgroundPosters = showcasePosters.slice(8, 20);
+
   return (
-    <section className="relative h-screen w-full overflow-hidden">
-      {/* Background with animated poster grid */}
+    <section className="relative h-screen w-full overflow-hidden bg-black">
+      {/* Background Layer - Ambient Posters */}
       <div className="absolute inset-0 z-0">
-        {/* Dark gradient base */}
-        <div className="absolute inset-0 gradient-warm" />
-
-        {/* Floating poster grid */}
-        <div className="absolute inset-0 opacity-20">
-          <div className="grid grid-cols-6 gap-4 p-8 animate-float">
-            {showcasePosters.map((content, index) => (
-              <div
-                key={content.id}
-                className={`relative aspect-[2/3] rounded-lg overflow-hidden transition-opacity duration-1000 ${
-                  index === currentPosterIndex ? 'opacity-100 scale-110' : 'opacity-40'
-                }`}
-                style={{
-                  transitionDelay: `${index * 0.1}s`,
-                }}
-              >
-                <Image
-                  src={content.poster}
-                  alt={content.title}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 50vw, 20vw"
-                />
-              </div>
-            ))}
-          </div>
+        <div className="absolute inset-0 grid grid-cols-4 gap-8 p-8 opacity-10 blur-sm">
+          {backgroundPosters.map((content) => (
+            <div
+              key={content.id}
+              className="relative aspect-[2/3] rounded-2xl overflow-hidden"
+            >
+              <Image
+                src={content.poster}
+                alt=""
+                fill
+                className="object-cover"
+                sizes="25vw"
+              />
+            </div>
+          ))}
         </div>
-
-        {/* Pattern overlay */}
-        <div className="absolute inset-0 opacity-5" style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-        }} />
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black via-black/80 to-black" />
       </div>
 
-      {/* Gradient Overlays */}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-tldr-dark/60 to-tldr-dark z-10" />
-      <div className="absolute inset-0 bg-gradient-to-r from-tldr-dark/40 via-transparent to-tldr-dark/40 z-10" />
+      {/* Main Featured Posters - Cinematic Carousel */}
+      <div className="absolute inset-0 z-10 flex items-center justify-center">
+        <div className="relative w-full max-w-[90rem] h-full flex items-center justify-center px-4 sm:px-8">
+          {/* Featured Posters Stack */}
+          <div className="relative w-full h-[70vh] flex items-center justify-center">
+            {featuredContent.map((content, index) => {
+              const isActive = index === featuredIndex;
+              const offset = index - featuredIndex;
+              const absOffset = Math.abs(offset);
 
-      {/* Content */}
-      <div className="relative z-20 h-full flex flex-col items-center justify-center text-center px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto">
+              return (
+                <div
+                  key={content.id}
+                  className="absolute transition-all duration-1000 ease-out"
+                  style={{
+                    transform: `
+                      translateX(${offset * 15}%)
+                      translateZ(${isActive ? 0 : -absOffset * 100}px)
+                      scale(${isActive ? 1 : Math.max(0.7, 1 - absOffset * 0.15)})
+                      rotateY(${offset * 8}deg)
+                    `,
+                    opacity: absOffset > 2 ? 0 : isActive ? 1 : Math.max(0.3, 1 - absOffset * 0.3),
+                    zIndex: 10 - absOffset,
+                    filter: isActive ? 'none' : `blur(${absOffset * 2}px)`,
+                  }}
+                >
+                  <div className="relative w-[280px] sm:w-[340px] md:w-[400px] aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl">
+                    <Image
+                      src={content.poster}
+                      alt={content.title}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 640px) 280px, (max-width: 768px) 340px, 400px"
+                      priority={index < 3}
+                    />
+                    {/* Subtle gradient overlay */}
+                    {isActive && (
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Content Overlay */}
+      <div className="absolute inset-0 z-20 flex flex-col items-center justify-between py-16 px-4 sm:px-6 lg:px-8 pointer-events-none">
+        {/* Top Content */}
+        <div className="w-full max-w-4xl text-center space-y-8 animate-fadeIn">
           {/* Logo/Brand */}
-          <div className="mb-8 animate-fadeIn">
-            <h1 className="text-6xl sm:text-7xl md:text-8xl font-bold tracking-tight">
-              <span className="text-tldr-gold font-serif" style={{ fontFamily: "'Playfair Display', serif" }}>
-                TLDR
-              </span>
-            </h1>
+          <h1 className="text-7xl sm:text-8xl md:text-9xl font-bold tracking-tight">
+            <span
+              className="bg-gradient-to-br from-tldr-gold via-yellow-400 to-tldr-gold bg-clip-text text-transparent"
+              style={{ fontFamily: "'Playfair Display', serif" }}
+            >
+              TLDR
+            </span>
+          </h1>
+
+          {/* Tagline */}
+          <div className="space-y-3">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight">
+              What to watch?
+            </h2>
+            <p className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-tldr-gold to-yellow-500 bg-clip-text text-transparent">
+              Made simple.
+            </p>
           </div>
 
-          {/* Headline */}
-          <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-6 leading-tight animate-fadeIn" style={{ animationDelay: '0.2s' }}>
-            What to watch?
-            <br />
-            <span className="text-tldr-gold">Made simple.</span>
-          </h2>
-
-          {/* Subheader */}
-          <p className="text-lg sm:text-xl md:text-2xl text-gray-300 mb-4 max-w-2xl mx-auto leading-relaxed animate-fadeIn" style={{ animationDelay: '0.4s' }}>
-            Discover the most relevant movies and shows across major streaming platforms.
+          {/* Subtext */}
+          <p className="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto">
+            Curated content. Every platform. Zero overwhelm.
           </p>
-          <p className="text-base sm:text-lg text-gray-400 mb-12 animate-fadeIn" style={{ animationDelay: '0.6s' }}>
-            No endless scrolling. Just the best.
-          </p>
+        </div>
 
-          {/* Platform badges */}
-          <div className="flex flex-wrap items-center justify-center gap-3 mb-12 animate-fadeIn" style={{ animationDelay: '0.8s' }}>
-            {['Netflix', 'Prime Video', 'Disney+', 'HBO Max', 'Apple TV+', 'Hulu'].map((platform) => (
-              <div
-                key={platform}
-                className="bg-tldr-darkGray/80 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-semibold text-gray-300 border border-tldr-lightGray/50"
-              >
-                {platform}
-              </div>
-            ))}
-          </div>
-
+        {/* Bottom Content */}
+        <div className="flex flex-col items-center gap-8">
           {/* CTA Button */}
           <button
             onClick={scrollToContent}
-            className="group relative inline-flex items-center gap-3 bg-tldr-gold text-tldr-dark font-bold text-lg px-8 py-4 rounded-full hover:bg-white transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-2xl animate-fadeIn"
-            style={{ animationDelay: '1s' }}
+            className="group pointer-events-auto relative inline-flex items-center gap-3 bg-white text-black font-semibold text-base sm:text-lg px-10 py-4 rounded-full hover:bg-tldr-gold transition-all duration-300 transform hover:scale-105 shadow-2xl"
           >
-            Explore Now
+            Explore Content
             <svg
-              className="w-5 h-5 transform group-hover:translate-y-1 transition-transform duration-300"
+              className="w-5 h-5 transform group-hover:translate-x-1 transition-transform duration-300"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -126,29 +148,42 @@ export default function Hero() {
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                strokeWidth={2.5}
+                d="M13 7l5 5m0 0l-5 5m5-5H6"
               />
             </svg>
           </button>
-        </div>
 
-        {/* Scroll Indicator */}
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
-          <div className="w-6 h-10 rounded-full border-2 border-gray-400 flex items-start justify-center p-2">
-            <div className="w-1 h-3 bg-gray-400 rounded-full animate-pulse" />
+          {/* Scroll Indicator */}
+          <div className="animate-bounce opacity-60">
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
           </div>
         </div>
       </div>
 
-      {/* Bottom fade to next section */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-tldr-dark to-transparent z-10" />
+      {/* Navigation Dots */}
+      <div className="absolute bottom-32 left-1/2 transform -translate-x-1/2 z-20 flex gap-2">
+        {featuredContent.map((_, index) => (
+          <button
+            key={index}
+            onClick={() => setFeaturedIndex(index)}
+            className={`w-2 h-2 rounded-full transition-all duration-300 ${
+              index === featuredIndex
+                ? 'bg-tldr-gold w-8'
+                : 'bg-white/30 hover:bg-white/50'
+            }`}
+            aria-label={`Go to poster ${index + 1}`}
+          />
+        ))}
+      </div>
 
       <style jsx>{`
         @keyframes fadeIn {
           from {
             opacity: 0;
-            transform: translateY(20px);
+            transform: translateY(-20px);
           }
           to {
             opacity: 1;
@@ -156,22 +191,8 @@ export default function Hero() {
           }
         }
 
-        @keyframes float {
-          0%, 100% {
-            transform: translateY(0px);
-          }
-          50% {
-            transform: translateY(-20px);
-          }
-        }
-
         .animate-fadeIn {
-          animation: fadeIn 0.8s ease-out forwards;
-          opacity: 0;
-        }
-
-        .animate-float {
-          animation: float 20s ease-in-out infinite;
+          animation: fadeIn 1s ease-out forwards;
         }
       `}</style>
     </section>

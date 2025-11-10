@@ -15,7 +15,7 @@ import {
   allPlatforms,
 } from '@/data/content';
 import ContentTypeToggle from './ContentTypeToggle';
-import PlatformFilter from './PlatformFilter';
+import PlatformLogoStrip from './PlatformLogoStrip';
 import WeekPicker from './WeekPicker';
 import TitleCard from './TitleCard';
 import TrailerModal from './TrailerModal';
@@ -80,19 +80,25 @@ export default function ContentBrowser() {
 
   return (
     <>
+      {/* Platform Logo Strip */}
+      <PlatformLogoStrip
+        selected={selectedPlatforms}
+        onChange={setSelectedPlatforms}
+      />
+
       <section id="content-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-tldr-dark min-h-screen">
         <div className="max-w-7xl mx-auto">
           {/* Section Tabs */}
-          <div className="mb-8 overflow-x-auto">
-            <div className="flex gap-2 min-w-max">
+          <div className="mb-12 flex justify-center">
+            <div className="inline-flex gap-2 bg-tldr-darkGray/30 backdrop-blur-sm p-2 rounded-2xl border border-tldr-lightGray/20">
               {(['top10', 'new', 'upcoming'] as Section[]).map((section) => (
                 <button
                   key={section}
                   onClick={() => setActiveSection(section)}
-                  className={`px-6 py-3 rounded-lg font-bold text-lg transition-all duration-200 ${
+                  className={`px-8 py-3 rounded-xl font-semibold text-base transition-all duration-200 ${
                     activeSection === section
-                      ? 'bg-tldr-gold text-tldr-dark shadow-lg'
-                      : 'bg-tldr-darkGray text-gray-400 hover:text-white hover:bg-tldr-gray'
+                      ? 'bg-white text-black shadow-lg'
+                      : 'text-gray-400 hover:text-white'
                   }`}
                 >
                   {sectionTitles[section]}
@@ -103,48 +109,40 @@ export default function ContentBrowser() {
 
           {/* Section Header */}
           <div className="text-center mb-12">
-            <h2 className="text-4xl sm:text-5xl font-bold text-white mb-4">
+            <h2 className="text-4xl sm:text-5xl font-bold text-white mb-3">
               {sectionTitles[activeSection]}
             </h2>
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+            <p className="text-lg text-gray-500 max-w-2xl mx-auto">
               {sectionDescriptions[activeSection]}
             </p>
           </div>
 
           {/* Filter Bar */}
-          <div className="mb-8 flex flex-wrap items-center justify-between gap-4 bg-tldr-darkGray/50 backdrop-blur-sm p-4 rounded-lg border border-tldr-lightGray/30">
-            <div className="flex flex-wrap items-center gap-4">
-              {/* Content Type Toggle */}
-              <ContentTypeToggle
-                selected={contentType}
-                onChange={setContentType}
-              />
+          <div className="mb-12 flex flex-wrap items-center justify-center gap-4">
+            {/* Content Type Toggle */}
+            <ContentTypeToggle
+              selected={contentType}
+              onChange={setContentType}
+            />
 
-              {/* Platform Filter */}
-              <PlatformFilter
-                selected={selectedPlatforms}
-                onChange={setSelectedPlatforms}
+            {/* Week Picker - Only for Top 10 */}
+            {activeSection === 'top10' && (
+              <WeekPicker
+                selected={selectedWeek}
+                availableWeeks={getAvailableWeeks()}
+                onChange={setSelectedWeek}
               />
-
-              {/* Week Picker - Only for Top 10 */}
-              {activeSection === 'top10' && (
-                <WeekPicker
-                  selected={selectedWeek}
-                  availableWeeks={getAvailableWeeks()}
-                  onChange={setSelectedWeek}
-                />
-              )}
-            </div>
+            )}
 
             {/* Results Count */}
-            <div className="text-gray-400 text-sm">
-              {filteredContent.length} {filteredContent.length === 1 ? 'title' : 'titles'}
+            <div className="text-gray-500 text-sm">
+              {filteredContent.length} {filteredContent.length === 1 ? 'result' : 'results'}
             </div>
           </div>
 
           {/* Content Grid */}
           {filteredContent.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
               {filteredContent.map((content, index) => (
                 <TitleCard
                   key={content.id}
