@@ -8,7 +8,7 @@ import PlatformBadge from './PlatformBadge';
 
 interface TitleCardProps {
   content: Content;
-  rank: number;
+  rank?: number;
   onTrailerClick: (content: Content) => void;
 }
 
@@ -25,10 +25,12 @@ export default function TitleCard({ content, rank, onTrailerClick }: TitleCardPr
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Rank Badge */}
-      <div className="absolute top-0 left-0 z-20 bg-tldr-gold text-tldr-dark font-bold text-3xl px-4 py-2 rounded-br-lg">
-        {rank}
-      </div>
+      {/* Rank Badge - Only show for Top 10 */}
+      {rank && (
+        <div className="absolute top-0 left-0 z-20 bg-tldr-gold text-tldr-dark font-bold text-3xl px-4 py-2 rounded-br-lg">
+          {rank}
+        </div>
+      )}
 
       {/* Poster Image */}
       <div className="relative aspect-[2/3] w-full">
