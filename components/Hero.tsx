@@ -1,21 +1,30 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import Image from 'next/image';
 import { top10Movies, top10Shows, newReleaseMovies, newReleaseShows, upcomingMovies, upcomingShows } from '@/data/content';
+import { useColorExtraction, useColorRgb } from '@/hooks/useColorExtraction';
 
 export default function Hero() {
-  const [dominantColor, setDominantColor] = useState({ r: 45, g: 36, b: 22 }); // Warm gold default
-
   // Combine all content for infinite carousel
-  const allContent = [
+  const allContent = useMemo(() => [
     ...top10Movies,
     ...top10Shows,
     ...newReleaseMovies,
     ...newReleaseShows,
     ...upcomingMovies,
     ...upcomingShows
-  ];
+  ], []);
+
+  // Select a few random posters for color extraction
+  const colorPosterUrls = useMemo(() => {
+    const shuffled = [...allContent].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 8).map(content => content.poster);
+  }, [allContent]);
+
+  // Extract and cycle through dominant colors
+  const colors = useColorExtraction(colorPosterUrls, 10000); // Change color every 10 seconds
+  const dominantColor = useColorRgb(colors);
 
   // Create multiple rows with different content
   const row1 = [...allContent.slice(0, 12), ...allContent.slice(0, 12)]; // Duplicate for infinite scroll
@@ -32,9 +41,9 @@ export default function Hero() {
 
   return (
     <section className="relative h-screen w-full overflow-hidden bg-black">
-      {/* Dynamic gradient background */}
+      {/* Dynamic gradient background with smooth color transitions */}
       <div
-        className="absolute inset-0 opacity-30"
+        className="absolute inset-0 opacity-30 transition-all duration-[3000ms] ease-in-out"
         style={{
           background: `radial-gradient(ellipse at center,
             rgba(${dominantColor.r}, ${dominantColor.g}, ${dominantColor.b}, 0.3) 0%,

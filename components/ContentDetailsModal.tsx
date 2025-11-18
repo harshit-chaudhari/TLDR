@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Content } from '@/data/content';
+import { useColorExtraction, useColorRgb } from '@/hooks/useColorExtraction';
 
 interface ContentDetailsModalProps {
   content: Content | null;
@@ -45,6 +46,10 @@ const PlatformLogos: Record<string, () => JSX.Element> = {
 };
 
 export default function ContentDetailsModal({ content, isOpen, onClose, onPlayTrailer }: ContentDetailsModalProps) {
+  // Extract dominant color from poster
+  const colors = useColorExtraction(content && isOpen ? [content.poster] : [], 0);
+  const dominantColor = useColorRgb(colors);
+
   if (!content || !isOpen) return null;
 
   const Logo = PlatformLogos[content.platform];
@@ -79,8 +84,16 @@ export default function ContentDetailsModal({ content, isOpen, onClose, onPlayTr
       aria-modal="true"
       tabIndex={-1}
     >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/90 backdrop-blur-xl" />
+      {/* Backdrop with dynamic color */}
+      <div
+        className="absolute inset-0 backdrop-blur-xl transition-all duration-1000"
+        style={{
+          background: `radial-gradient(ellipse at top,
+            rgba(${dominantColor.r}, ${dominantColor.g}, ${dominantColor.b}, 0.2) 0%,
+            rgba(0, 0, 0, 0.95) 60%,
+            rgba(0, 0, 0, 0.98) 100%)`
+        }}
+      />
 
       {/* Modal Content */}
       <div className="relative z-10 w-full max-w-5xl mx-4 max-h-[90vh] overflow-y-auto bg-tldr-darkGray rounded-3xl shadow-2xl">
