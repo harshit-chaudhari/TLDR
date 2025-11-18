@@ -17,6 +17,7 @@ import PlatformSelector from './PlatformSelector';
 import ContentTypeToggle from './ContentTypeToggle';
 import TitleCard from './TitleCard';
 import TrailerModal from './TrailerModal';
+import ContentDetailsModal from './ContentDetailsModal';
 
 type Section = 'top10' | 'justin' | 'upcoming';
 
@@ -29,7 +30,8 @@ export default function ContentBrowser() {
   const [selectedLanguage, setSelectedLanguage] = useState('All');
 
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isTrailerModalOpen, setIsTrailerModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
   // Filter logic - ONE platform at a time
   const filteredContent = useMemo(() => {
@@ -65,12 +67,31 @@ export default function ContentBrowser() {
 
   const handleTrailerClick = (content: Content) => {
     setSelectedContent(content);
-    setIsModalOpen(true);
+    setIsTrailerModalOpen(true);
   };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setTimeout(() => setSelectedContent(null), 300);
+  const handleCardClick = (content: Content) => {
+    setSelectedContent(content);
+    setIsDetailsModalOpen(true);
+  };
+
+  const handleCloseTrailerModal = () => {
+    setIsTrailerModalOpen(false);
+    setTimeout(() => {
+      if (!isDetailsModalOpen) setSelectedContent(null);
+    }, 300);
+  };
+
+  const handleCloseDetailsModal = () => {
+    setIsDetailsModalOpen(false);
+    setTimeout(() => {
+      if (!isTrailerModalOpen) setSelectedContent(null);
+    }, 300);
+  };
+
+  const handlePlayTrailerFromDetails = () => {
+    setIsDetailsModalOpen(false);
+    setIsTrailerModalOpen(true);
   };
 
   const sectionTitles = {
@@ -187,6 +208,7 @@ export default function ContentBrowser() {
                       content={content}
                       rank={index + 1}
                       onTrailerClick={handleTrailerClick}
+                      onCardClick={handleCardClick}
                     />
                   ))}
                 </div>
@@ -200,6 +222,7 @@ export default function ContentBrowser() {
                       key={content.id}
                       content={content}
                       onTrailerClick={handleTrailerClick}
+                      onCardClick={handleCardClick}
                     />
                   ))}
                 </div>
@@ -225,7 +248,7 @@ export default function ContentBrowser() {
 
                           {/* Content card - horizontal */}
                           <div
-                            onClick={() => handleTrailerClick(content)}
+                            onClick={() => handleCardClick(content)}
                             className="flex gap-4 bg-tldr-darkGray/30 hover:bg-tldr-darkGray/50 rounded-xl p-4 cursor-pointer transition-all duration-300 hover:scale-[1.02] border border-tldr-lightGray/10"
                           >
                             {/* Poster */}
@@ -305,11 +328,19 @@ export default function ContentBrowser() {
         </div>
       </section>
 
+      {/* Details Modal */}
+      <ContentDetailsModal
+        content={selectedContent}
+        isOpen={isDetailsModalOpen}
+        onClose={handleCloseDetailsModal}
+        onPlayTrailer={handlePlayTrailerFromDetails}
+      />
+
       {/* Trailer Modal */}
       <TrailerModal
         content={selectedContent}
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
+        isOpen={isTrailerModalOpen}
+        onClose={handleCloseTrailerModal}
       />
     </>
   );

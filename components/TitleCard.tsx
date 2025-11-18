@@ -9,6 +9,7 @@ interface TitleCardProps {
   content: Content;
   rank?: number;
   onTrailerClick: (content: Content) => void;
+  onCardClick: (content: Content) => void;
 }
 
 const PlatformLogos = {
@@ -44,12 +45,18 @@ const PlatformLogos = {
   ),
 };
 
-export default function TitleCard({ content, rank, onTrailerClick }: TitleCardProps) {
+export default function TitleCard({ content, rank, onTrailerClick, onCardClick }: TitleCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const Logo = PlatformLogos[content.platform];
 
-  const handlePlayClick = () => {
+  const handlePlayClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     window.open(content.watchUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleTrailerClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onTrailerClick(content);
   };
 
   return (
@@ -57,6 +64,7 @@ export default function TitleCard({ content, rank, onTrailerClick }: TitleCardPr
       className="relative group cursor-pointer overflow-hidden rounded-2xl bg-black transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={() => onCardClick(content)}
     >
       {/* Rank Badge - Only show for Top 10 */}
       {rank && (
@@ -120,7 +128,7 @@ export default function TitleCard({ content, rank, onTrailerClick }: TitleCardPr
           </button>
 
           <button
-            onClick={() => onTrailerClick(content)}
+            onClick={handleTrailerClick}
             className="bg-tldr-darkGray/80 backdrop-blur-sm text-white font-semibold py-2 px-3 rounded-lg hover:bg-tldr-gray transition-all duration-200 text-sm"
             aria-label="Watch trailer"
           >

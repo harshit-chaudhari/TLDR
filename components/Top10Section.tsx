@@ -4,19 +4,40 @@ import { useState } from 'react';
 import { top10Movies, top10Shows, Content } from '@/data/content';
 import TitleCard from './TitleCard';
 import TrailerModal from './TrailerModal';
+import ContentDetailsModal from './ContentDetailsModal';
 
 export default function Top10Section() {
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isTrailerModalOpen, setIsTrailerModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
   const handleTrailerClick = (content: Content) => {
     setSelectedContent(content);
-    setIsModalOpen(true);
+    setIsTrailerModalOpen(true);
   };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setTimeout(() => setSelectedContent(null), 300);
+  const handleCardClick = (content: Content) => {
+    setSelectedContent(content);
+    setIsDetailsModalOpen(true);
+  };
+
+  const handleCloseTrailerModal = () => {
+    setIsTrailerModalOpen(false);
+    setTimeout(() => {
+      if (!isDetailsModalOpen) setSelectedContent(null);
+    }, 300);
+  };
+
+  const handleCloseDetailsModal = () => {
+    setIsDetailsModalOpen(false);
+    setTimeout(() => {
+      if (!isTrailerModalOpen) setSelectedContent(null);
+    }, 300);
+  };
+
+  const handlePlayTrailerFromDetails = () => {
+    setIsDetailsModalOpen(false);
+    setIsTrailerModalOpen(true);
   };
 
   return (
@@ -47,6 +68,7 @@ export default function Top10Section() {
                   content={movie}
                   rank={index + 1}
                   onTrailerClick={handleTrailerClick}
+                  onCardClick={handleCardClick}
                 />
               ))}
             </div>
@@ -66,6 +88,7 @@ export default function Top10Section() {
                   content={show}
                   rank={index + 1}
                   onTrailerClick={handleTrailerClick}
+                  onCardClick={handleCardClick}
                 />
               ))}
             </div>
@@ -73,11 +96,19 @@ export default function Top10Section() {
         </div>
       </section>
 
+      {/* Details Modal */}
+      <ContentDetailsModal
+        content={selectedContent}
+        isOpen={isDetailsModalOpen}
+        onClose={handleCloseDetailsModal}
+        onPlayTrailer={handlePlayTrailerFromDetails}
+      />
+
       {/* Trailer Modal */}
       <TrailerModal
         content={selectedContent}
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
+        isOpen={isTrailerModalOpen}
+        onClose={handleCloseTrailerModal}
       />
     </>
   );
