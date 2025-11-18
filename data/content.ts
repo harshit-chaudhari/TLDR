@@ -14,6 +14,8 @@ export interface Content {
   genre?: string[];
   releaseDate?: string; // ISO format: YYYY-MM-DD
   weekStart?: string; // For Top 10: ISO format week start date
+  language?: string; // Primary language
+  languages?: string[]; // Available audio languages
 }
 
 // Helper function to get week start date (Monday)
@@ -42,7 +44,9 @@ export const top10Movies: Content[] = [
     trailerUrl: "https://www.youtube.com/embed/uYPbbksJxIg",
     year: 2023,
     genre: ["Biography", "Drama", "History"],
-    weekStart: currentWeek
+    weekStart: currentWeek,
+    language: "English",
+    languages: ["English", "German", "Dutch"]
   },
   {
     id: "tm2",
@@ -55,7 +59,9 @@ export const top10Movies: Content[] = [
     trailerUrl: "https://www.youtube.com/embed/5h9E3fLLfN8",
     year: 2023,
     genre: ["Comedy", "Drama"],
-    weekStart: currentWeek
+    weekStart: currentWeek,
+    language: "English",
+    languages: ["English"]
   },
   {
     id: "tm3",
@@ -68,7 +74,9 @@ export const top10Movies: Content[] = [
     trailerUrl: "https://www.youtube.com/embed/RlbR5N6veqw",
     year: 2023,
     genre: ["Comedy", "Drama", "Romance"],
-    weekStart: currentWeek
+    weekStart: currentWeek,
+    language: "English",
+    languages: ["English", "French"]
   },
   {
     id: "tm4",

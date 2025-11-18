@@ -18,6 +18,7 @@ import ContentTypeToggle from './ContentTypeToggle';
 import TitleCard from './TitleCard';
 import TrailerModal from './TrailerModal';
 import ContentDetailsModal from './ContentDetailsModal';
+import WeekPicker from './WeekPicker';
 
 type Section = 'top10' | 'justin' | 'upcoming';
 
@@ -28,6 +29,7 @@ export default function ContentBrowser() {
   const [activeSection, setActiveSection] = useState<Section>('top10');
   const [contentType, setContentType] = useState<ContentType>('movie');
   const [selectedLanguage, setSelectedLanguage] = useState('All');
+  const [selectedWeek, setSelectedWeek] = useState<Date>(new Date());
 
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
   const [isTrailerModalOpen, setIsTrailerModalOpen] = useState(false);
@@ -51,10 +53,13 @@ export default function ContentBrowser() {
     // Filter by selected platform (only ONE)
     content = content.filter(item => item.platform === selectedPlatform);
 
-    // TODO: Language filter when we have language data
-    // if (selectedLanguage !== 'All') {
-    //   content = content.filter(item => item.language === selectedLanguage);
-    // }
+    // Language filter
+    if (selectedLanguage !== 'All') {
+      content = content.filter(item =>
+        item.language === selectedLanguage ||
+        item.languages?.includes(selectedLanguage)
+      );
+    }
 
     // For Top 10, limit to 10 items
     if (activeSection === 'top10') {
@@ -62,8 +67,7 @@ export default function ContentBrowser() {
     }
 
     return content;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPlatform, activeSection, contentType]);
+  }, [selectedPlatform, activeSection, contentType, selectedLanguage]);
 
   const handleTrailerClick = (content: Content) => {
     setSelectedContent(content);
@@ -157,6 +161,14 @@ export default function ContentBrowser() {
 
           {/* Filter Bar */}
           <div className="mb-10 flex flex-wrap items-center justify-center gap-4">
+            {/* Week Picker - Only show for Top 10 */}
+            {activeSection === 'top10' && (
+              <WeekPicker
+                selectedDate={selectedWeek}
+                onDateChange={setSelectedWeek}
+              />
+            )}
+
             {/* Content Type Toggle */}
             <ContentTypeToggle
               selected={contentType}
