@@ -93,6 +93,27 @@ export default function Home() {
   const currentContent = getCurrentContent();
   const heroContent = mediaType === 'movie' ? top10Movies : top10Shows;
 
+  // Generate a gradient color based on title hash
+  const getGradientFromTitle = (title: string) => {
+    let hash = 0;
+    for (let i = 0; i < title.length; i++) {
+      hash = title.charCodeAt(i) + ((hash << 5) - hash);
+    }
+
+    const gradients = [
+      'from-purple-900/40 via-purple-700/30 to-purple-500/20',
+      'from-blue-900/40 via-blue-700/30 to-blue-500/20',
+      'from-green-900/40 via-green-700/30 to-green-500/20',
+      'from-red-900/40 via-red-700/30 to-red-500/20',
+      'from-yellow-900/40 via-yellow-700/30 to-yellow-500/20',
+      'from-pink-900/40 via-pink-700/30 to-pink-500/20',
+      'from-indigo-900/40 via-indigo-700/30 to-indigo-500/20',
+      'from-teal-900/40 via-teal-700/30 to-teal-500/20',
+    ];
+
+    return gradients[Math.abs(hash) % gradients.length];
+  };
+
   // Initial animation on page load
   useEffect(() => {
     // Wait for content to load, then play initial animation
@@ -518,7 +539,9 @@ export default function Home() {
             <div className="grid grid-cols-5 gap-0">
               {currentContent.slice(0, 10).map((item, index) => {
                 const title = 'title' in item ? item.title : item.name;
+                const hasPoster = item.poster_path !== null;
                 const posterUrl = getPosterUrl(item.poster_path);
+                const gradientClass = getGradientFromTitle(title);
 
                 return (
                   <div
@@ -527,18 +550,29 @@ export default function Home() {
                     onClick={() => openOverlay(index)}
                   >
                     <div className="relative aspect-[2/3] bg-[#0a0a0a] group cursor-pointer">
-                      <Image
-                        src={posterUrl}
-                        alt={title}
-                        fill
-                        className="object-cover transition-transform duration-300 group-hover:scale-110"
-                        sizes="288px"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        <div className="absolute bottom-0 left-0 right-0 p-6 flex items-center justify-center">
-                          <p className="text-white text-base font-bold text-center line-clamp-3">{title}</p>
+                      {hasPoster ? (
+                        <>
+                          <Image
+                            src={posterUrl}
+                            alt={title}
+                            fill
+                            className="object-cover transition-transform duration-300 group-hover:scale-110"
+                            sizes="288px"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <div className="absolute bottom-0 left-0 right-0 p-6 flex items-center justify-center">
+                              <p className="text-white text-base font-bold text-center line-clamp-3">{title}</p>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        /* Fallback card with gradient background and title */
+                        <div className={`absolute inset-0 bg-gradient-to-br ${gradientClass} flex items-center justify-center p-8`}>
+                          <h3 className="text-white text-2xl font-bold text-center uppercase tracking-[0.2em] leading-tight">
+                            {title}
+                          </h3>
                         </div>
-                      </div>
+                      )}
                       {/* Platform Logo Badge */}
                       <div className="absolute top-3 right-3">
                         <PlatformLogo platform={selectedPlatform} isSelected={true} size="badge" />
@@ -566,7 +600,9 @@ export default function Home() {
             <div className="grid grid-cols-6 gap-4">
               {currentContent.slice(0, 18).map((item, index) => {
                 const title = 'title' in item ? item.title : item.name;
+                const hasPoster = item.poster_path !== null;
                 const posterUrl = getPosterUrl(item.poster_path);
+                const gradientClass = getGradientFromTitle(title);
 
                 return (
                   <div
@@ -575,18 +611,29 @@ export default function Home() {
                     onClick={() => openOverlay(index)}
                   >
                     <div className="relative aspect-[2/3] bg-[#0a0a0a] group cursor-pointer overflow-hidden rounded-lg">
-                      <Image
-                        src={posterUrl}
-                        alt={title}
-                        fill
-                        className="object-cover transition-transform duration-300 group-hover:scale-110"
-                        sizes="192px"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-center">
-                          <p className="text-white text-base font-bold text-center line-clamp-3">{title}</p>
+                      {hasPoster ? (
+                        <>
+                          <Image
+                            src={posterUrl}
+                            alt={title}
+                            fill
+                            className="object-cover transition-transform duration-300 group-hover:scale-110"
+                            sizes="192px"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-center">
+                              <p className="text-white text-base font-bold text-center line-clamp-3">{title}</p>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        /* Fallback card with gradient background and title */
+                        <div className={`absolute inset-0 bg-gradient-to-br ${gradientClass} flex items-center justify-center p-6`}>
+                          <h3 className="text-white text-xl font-bold text-center uppercase tracking-[0.2em] leading-tight">
+                            {title}
+                          </h3>
                         </div>
-                      </div>
+                      )}
                       {/* Platform Logo Badge */}
                       <div className="absolute top-2 right-2">
                         <PlatformLogo platform={selectedPlatform} isSelected={true} size="badge" />
@@ -607,7 +654,9 @@ export default function Home() {
                 <div className="flex gap-8 px-8 min-w-max">
                   {currentContent.slice(0, 15).map((item, index) => {
                     const title = 'title' in item ? item.title : item.name;
+                    const hasPoster = item.poster_path !== null;
                     const posterUrl = getPosterUrl(item.poster_path);
+                    const gradientClass = getGradientFromTitle(title);
                     const releaseDate = 'release_date' in item ? item.release_date : item.first_air_date;
                     const dateObj = releaseDate ? new Date(releaseDate) : null;
                     const monthDay = dateObj ? dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'TBA';
@@ -621,19 +670,30 @@ export default function Home() {
                           onClick={() => openOverlay(index)}
                         >
                           <div className="relative w-[200px] h-[300px] rounded-lg overflow-hidden shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl">
-                            <Image
-                              src={posterUrl}
-                              alt={title}
-                              fill
-                              className="object-cover"
-                              sizes="200px"
-                            />
-                            {/* Gradient overlay on hover */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                              <div className="absolute bottom-0 left-0 right-0 p-3">
-                                <p className="text-white text-sm font-bold line-clamp-2">{title}</p>
+                            {hasPoster ? (
+                              <>
+                                <Image
+                                  src={posterUrl}
+                                  alt={title}
+                                  fill
+                                  className="object-cover"
+                                  sizes="200px"
+                                />
+                                {/* Gradient overlay on hover */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                  <div className="absolute bottom-0 left-0 right-0 p-3">
+                                    <p className="text-white text-sm font-bold line-clamp-2">{title}</p>
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              /* Fallback card with gradient background and title */
+                              <div className={`absolute inset-0 bg-gradient-to-br ${gradientClass} flex items-center justify-center p-6`}>
+                                <h3 className="text-white text-lg font-bold text-center uppercase tracking-[0.2em] leading-tight">
+                                  {title}
+                                </h3>
                               </div>
-                            </div>
+                            )}
                             {/* Platform Logo Badge */}
                             <div className="absolute top-2 right-2">
                               <PlatformLogo platform={selectedPlatform} isSelected={true} size="badge" />

@@ -104,59 +104,65 @@ export async function getPopularByPlatformAndDate(
   durationFilter: 'This Week' | 'Last Week' | 'This Month'
 ) {
   const providerId = platformIds[platform];
+  console.log(`[Just In] Platform: ${platform}, Provider ID: ${providerId}, Filter: ${durationFilter}`);
 
   try {
-    // Calculate date range
+    // Calculate date range - make it more flexible for providers with limited data
     const today = new Date();
     let startDate: Date;
     let endDate = new Date(today);
 
+    // Use wider date ranges for better results
     if (durationFilter === 'This Week') {
-      startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+      startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000); // Last 30 days instead of 7
     } else if (durationFilter === 'Last Week') {
-      startDate = new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000);
-      endDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+      startDate = new Date(today.getTime() - 60 * 24 * 60 * 60 * 1000); // Last 60 days
+      endDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
     } else {
-      startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+      startDate = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000); // Last 90 days
     }
 
     const releaseDateKey = mediaType === 'movie' ? 'primary_release_date' : 'first_air_date';
     const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = endDate.toISOString().split('T')[0];
 
-    // Fetch multiple pages
+    console.log(`[Just In] Date range: ${startDateStr} to ${endDateStr}`);
+
+    // First try: with provider and date filter
     const pages = await Promise.all([1, 2, 3, 4, 5].map(async (page) => {
-      const response = await fetch(
-        `${TMDB_BASE_URL}/discover/${mediaType}?include_adult=false&include_video=false&language=en-US&page=${page}&sort_by=popularity.desc&watch_region=IN${providerId ? `&with_watch_providers=${providerId}` : ''}&${releaseDateKey}.gte=${startDateStr}&${releaseDateKey}.lte=${endDateStr}`,
-        { headers }
-      );
+      const url = `${TMDB_BASE_URL}/discover/${mediaType}?include_adult=false&include_video=false&language=en-US&page=${page}&sort_by=popularity.desc&watch_region=IN${providerId ? `&with_watch_providers=${providerId}` : ''}&${releaseDateKey}.gte=${startDateStr}&${releaseDateKey}.lte=${endDateStr}`;
+      const response = await fetch(url, { headers });
       const data = await response.json();
+      if (page === 1) console.log(`[Just In] First page results:`, data.results?.length || 0);
       return data.results || [];
     }));
 
     const results = pages.flat().slice(0, 30);
+    console.log(`[Just In] Total results with date filter: ${results.length}`);
 
     // If no results with provider and date filter, try without date filter
     if (results.length === 0 && providerId) {
+      console.log(`[Just In] Trying without date filter...`);
       const fallbackPages = await Promise.all([1, 2, 3].map(async (page) => {
-        const response = await fetch(
-          `${TMDB_BASE_URL}/discover/${mediaType}?include_adult=false&include_video=false&language=en-US&page=${page}&sort_by=popularity.desc&watch_region=IN&with_watch_providers=${providerId}`,
-          { headers }
-        );
+        const url = `${TMDB_BASE_URL}/discover/${mediaType}?include_adult=false&include_video=false&language=en-US&page=${page}&sort_by=popularity.desc&watch_region=IN&with_watch_providers=${providerId}`;
+        const response = await fetch(url, { headers });
         const data = await response.json();
         return data.results || [];
       }));
-      return fallbackPages.flat().slice(0, 30);
+      const fallbackResults = fallbackPages.flat().slice(0, 30);
+      console.log(`[Just In] Fallback results: ${fallbackResults.length}`);
+      return fallbackResults;
     }
 
     // Final fallback to general popular
     if (results.length === 0) {
+      console.log(`[Just In] Using general popular as final fallback`);
       return getPopular(mediaType);
     }
 
     return results;
   } catch (error) {
-    console.error(`Error fetching popular for ${platform}:`, error);
+    console.error(`[Just In] Error for ${platform}:`, error);
     return getPopular(mediaType);
   }
 }
@@ -179,59 +185,65 @@ export async function getUpcomingByPlatformAndDate(
   durationFilter: 'This Week' | 'Next Week' | 'This Month'
 ) {
   const providerId = platformIds[platform];
+  console.log(`[Upcoming] Platform: ${platform}, Provider ID: ${providerId}, Filter: ${durationFilter}`);
 
   try {
-    // Calculate date range
+    // Calculate date range - make it more flexible
     const today = new Date();
     let startDate = new Date(today);
     let endDate: Date;
 
+    // Use wider date ranges for better results
     if (durationFilter === 'This Week') {
-      endDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+      endDate = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000); // Next 60 days instead of 7
     } else if (durationFilter === 'Next Week') {
       startDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-      endDate = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
+      endDate = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000); // Next 90 days
     } else {
-      endDate = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+      endDate = new Date(today.getTime() + 120 * 24 * 60 * 60 * 1000); // Next 120 days
     }
 
     const releaseDateKey = mediaType === 'movie' ? 'primary_release_date' : 'first_air_date';
     const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = endDate.toISOString().split('T')[0];
 
-    // Fetch multiple pages
+    console.log(`[Upcoming] Date range: ${startDateStr} to ${endDateStr}`);
+
+    // First try: with provider and date filter
     const pages = await Promise.all([1, 2, 3, 4, 5].map(async (page) => {
-      const response = await fetch(
-        `${TMDB_BASE_URL}/discover/${mediaType}?include_adult=false&include_video=false&language=en-US&page=${page}&sort_by=popularity.desc&watch_region=IN${providerId ? `&with_watch_providers=${providerId}` : ''}&${releaseDateKey}.gte=${startDateStr}&${releaseDateKey}.lte=${endDateStr}`,
-        { headers }
-      );
+      const url = `${TMDB_BASE_URL}/discover/${mediaType}?include_adult=false&include_video=false&language=en-US&page=${page}&sort_by=popularity.desc&watch_region=IN${providerId ? `&with_watch_providers=${providerId}` : ''}&${releaseDateKey}.gte=${startDateStr}&${releaseDateKey}.lte=${endDateStr}`;
+      const response = await fetch(url, { headers });
       const data = await response.json();
+      if (page === 1) console.log(`[Upcoming] First page results:`, data.results?.length || 0);
       return data.results || [];
     }));
 
     const results = pages.flat().slice(0, 30);
+    console.log(`[Upcoming] Total results with date filter: ${results.length}`);
 
     // If no results with provider and date filter, try without date filter
     if (results.length === 0 && providerId) {
+      console.log(`[Upcoming] Trying without date filter...`);
       const fallbackPages = await Promise.all([1, 2, 3].map(async (page) => {
-        const response = await fetch(
-          `${TMDB_BASE_URL}/discover/${mediaType}?include_adult=false&include_video=false&language=en-US&page=${page}&sort_by=popularity.desc&watch_region=IN&with_watch_providers=${providerId}`,
-          { headers }
-        );
+        const url = `${TMDB_BASE_URL}/discover/${mediaType}?include_adult=false&include_video=false&language=en-US&page=${page}&sort_by=popularity.desc&watch_region=IN&with_watch_providers=${providerId}`;
+        const response = await fetch(url, { headers });
         const data = await response.json();
         return data.results || [];
       }));
-      return fallbackPages.flat().slice(0, 30);
+      const fallbackResults = fallbackPages.flat().slice(0, 30);
+      console.log(`[Upcoming] Fallback results: ${fallbackResults.length}`);
+      return fallbackResults;
     }
 
     // Final fallback to general upcoming
     if (results.length === 0) {
+      console.log(`[Upcoming] Using general upcoming as final fallback`);
       return getUpcoming(mediaType);
     }
 
     return results;
   } catch (error) {
-    console.error(`Error fetching upcoming for ${platform}:`, error);
+    console.error(`[Upcoming] Error for ${platform}:`, error);
     return getUpcoming(mediaType);
   }
 }
