@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
+import { Red_Hat_Display } from "next/font/google";
 import "./globals.css";
+
+const redHatDisplay = Red_Hat_Display({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
+  variable: "--font-red-hat-display",
+});
 
 export const metadata: Metadata = {
   title: "TLDR - What to watch? Made simple.",
@@ -19,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">
+      <body className={`${redHatDisplay.variable} font-sans antialiased`}>
         {children}
       </body>
     </html>
