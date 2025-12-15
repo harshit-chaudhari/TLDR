@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { getDetails, getVideos, getBackdropUrl, getPosterUrl, getWatchProviders, getPlatformDeeplink, getCredits, truncateGenres, TMDBMovie, TMDBShow } from '@/lib/tmdb';
 import { PlatformLogo } from './PlatformLogo';
+import { FavoriteButton } from './FavoriteButton';
+import toast from 'react-hot-toast';
 
 interface MovieDetails {
   id: number;
@@ -34,9 +36,10 @@ interface DetailsOverlayProps {
   initialIndex: number;
   mediaType: 'movie' | 'tv';
   onClose: () => void;
+  onAuthRequired?: () => void;
 }
 
-export default function DetailsOverlay({ items, initialIndex, mediaType, onClose }: DetailsOverlayProps) {
+export default function DetailsOverlay({ items, initialIndex, mediaType, onClose, onAuthRequired }: DetailsOverlayProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [details, setDetails] = useState<MovieDetails | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
@@ -44,37 +47,33 @@ export default function DetailsOverlay({ items, initialIndex, mediaType, onClose
   const [credits, setCredits] = useState<any>(null);
   const [showTrailer, setShowTrailer] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [showFullCast, setShowFullCast] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const lastScrollY = useRef(0);
+  const favoriteContainerRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef<number>(0);
+  const touchEndX = useRef<number>(0);
 
   const currentItem = items[currentIndex];
   const id = currentItem?.id;
-  const prevItem = items[currentIndex - 1];
-  const nextItem = items[currentIndex + 1];
+  // Use the current item's media_type if available, fall back to the prop
+  const currentMediaType = (currentItem as any)?.media_type || mediaType;
 
   useEffect(() => {
     if (!id) return;
 
     async function fetchDetails() {
-      // Start transition immediately
       setIsTransitioning(true);
-
-      // Small delay before loading new content so slide out is visible
-      await new Promise(resolve => setTimeout(resolve, 300));
-
+      await new Promise(resolve => setTimeout(resolve, 200));
       setLoading(true);
 
       try {
         const [detailsData, videosData, providersData, creditsData] = await Promise.all([
-          getDetails(mediaType, id),
-          getVideos(mediaType, id),
-          getWatchProviders(mediaType, id),
-          getCredits(mediaType, id),
+          getDetails(currentMediaType, id),
+          getVideos(currentMediaType, id),
+          getWatchProviders(currentMediaType, id),
+          getCredits(currentMediaType, id),
         ]);
 
         setDetails(detailsData);
@@ -85,7 +84,6 @@ export default function DetailsOverlay({ items, initialIndex, mediaType, onClose
         console.error('Error fetching details:', error);
       } finally {
         setLoading(false);
-        // Natural slide in - smooth transition with overlap
         setTimeout(() => {
           setIsTransitioning(false);
           setSlideDirection(null);
@@ -93,35 +91,11 @@ export default function DetailsOverlay({ items, initialIndex, mediaType, onClose
       }
     }
     fetchDetails();
-    setShowFullCast(false);
 
-    // Reset scroll position
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;
     }
-  }, [mediaType, id]);
-
-  // Handle scroll for expand/collapse
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!scrollRef.current) return;
-      const currentScrollY = scrollRef.current.scrollTop;
-
-      if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
-        setIsExpanded(true);
-      } else if (currentScrollY === 0) {
-        setIsExpanded(false);
-      }
-
-      lastScrollY.current = currentScrollY;
-    };
-
-    const scrollElement = scrollRef.current;
-    if (scrollElement) {
-      scrollElement.addEventListener('scroll', handleScroll);
-      return () => scrollElement.removeEventListener('scroll', handleScroll);
-    }
-  }, []);
+  }, [currentMediaType, id]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -130,8 +104,18 @@ export default function DetailsOverlay({ items, initialIndex, mediaType, onClose
         handlePrevious();
       } else if (e.key === 'ArrowRight' && currentIndex < items.length - 1) {
         handleNext();
-      } else if (e.key === 'Escape') {
+      } else if (e.key === 'Escape' || e.key === 'd' || e.key === 'D') {
+        // Close on Escape or D (toggle behavior - D opens and closes)
         onClose();
+      } else if (e.key === 'l' || e.key === 'L') {
+        // Toggle favorite
+        e.preventDefault();
+        const button = favoriteContainerRef.current?.querySelector('button');
+        button?.click();
+      } else if (e.key === 's' || e.key === 'S') {
+        // Share
+        e.preventDefault();
+        handleShare();
       }
     };
 
@@ -153,44 +137,47 @@ export default function DetailsOverlay({ items, initialIndex, mediaType, onClose
     }
   };
 
+  // Touch swipe handlers for mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    const swipeThreshold = 50;
+    const diff = touchStartX.current - touchEndX.current;
+
+    if (Math.abs(diff) > swipeThreshold) {
+      if (diff > 0) {
+        // Swiped left - go next
+        handleNext();
+      } else {
+        // Swiped right - go previous
+        handlePrevious();
+      }
+    }
+
+    // Reset
+    touchStartX.current = 0;
+    touchEndX.current = 0;
+  };
+
   if (!details || loading) {
     return (
-      <>
-        {/* Overlay Background - More prominent overlay effect */}
-        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl" onClick={onClose} />
-
-        {/* Loading Skeleton */}
-        <div className="fixed z-[52] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1280px] h-[720px] rounded-lg overflow-hidden bg-black">
-          {/* Close Button */}
-          <button
-            onClick={onClose}
-            className="absolute top-6 right-6 z-[60] w-12 h-12 flex items-center justify-center bg-black/70 hover:bg-black/90 rounded-full text-white text-xl transition-colors"
-          >
-            ✕
-          </button>
-
-          {/* Loading shimmer */}
-          <div className="flex h-full">
-            {/* Left poster skeleton */}
-            <div className="w-[360px] h-full bg-[#0a0a0a] relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer"></div>
-            </div>
-            {/* Right content skeleton */}
-            <div className="flex-1 bg-black p-12">
-              <div className="h-10 bg-[#1a1a1a] rounded w-2/3 mb-4 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer"></div>
-              </div>
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-4 bg-[#1a1a1a] rounded relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer"></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </>
+      <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex items-center justify-center" onClick={onClose}>
+        <button
+          onClick={onClose}
+          className="absolute top-6 right-6 z-[60] w-10 h-10 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-full text-white/70 hover:text-white transition-all"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        <div className="w-8 h-8 border-2 border-white/20 border-t-white/80 rounded-full animate-spin" />
+      </div>
     );
   }
 
@@ -199,7 +186,7 @@ export default function DetailsOverlay({ items, initialIndex, mediaType, onClose
     ? new Date(details.release_date).getFullYear()
     : details.first_air_date
     ? new Date(details.first_air_date).getFullYear()
-    : 'N/A';
+    : null;
 
   const runtime = details.runtime
     ? `${Math.floor(details.runtime / 60)}h ${details.runtime % 60}m`
@@ -216,7 +203,7 @@ export default function DetailsOverlay({ items, initialIndex, mediaType, onClose
 
   const handleWatchClick = () => {
     if (primaryProvider) {
-      const deeplink = getPlatformDeeplink(primaryProvider.provider_name, mediaType, id, title);
+      const deeplink = getPlatformDeeplink(primaryProvider.provider_name, currentMediaType, id, title);
       window.open(deeplink, '_blank');
     } else {
       const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(title)}+where+to+watch`;
@@ -224,238 +211,353 @@ export default function DetailsOverlay({ items, initialIndex, mediaType, onClose
     }
   };
 
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}/reels?id=${id}&type=${currentMediaType}`;
+    const shareData = {
+      title: title,
+      text: `Check out ${title} on TLDR`,
+      url: shareUrl,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Link copied to clipboard');
+      }
+    } catch {
+      // User cancelled share
+    }
+  };
+
+  // Director/Creator
+  const director = credits?.crew?.find((c: any) => c.job === 'Director');
+  const creator = credits?.crew?.find((c: any) => c.job === 'Creator' || c.job === 'Executive Producer');
+
   return (
     <>
-      {/* Overlay Background - More prominent overlay effect */}
-      <div
-        className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl"
-        onClick={onClose}
-      />
+      {/* Overlay Background */}
+      <div className="fixed inset-0 z-50 bg-black/90" onClick={onClose} />
 
-      {/* Side Preview Cards - Hidden during transitions for clean Apple-style effect */}
-      {!isTransitioning && (
-        <>
-          {/* Left Preview */}
-          {prevItem && !isExpanded && (
-            <div
-              className="fixed left-[calc(50%-720px)] top-1/2 -translate-y-1/2 z-[51] w-[280px] h-[420px] opacity-60 cursor-pointer transition-all duration-300 hover:opacity-80 hover:scale-105"
-              onClick={handlePrevious}
-            >
-              <Image
-                src={getPosterUrl(prevItem.poster_path, 'w500')}
-                alt={'title' in prevItem ? prevItem.title : prevItem.name}
-                fill
-                className="object-cover rounded-lg"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/50 rounded-lg" />
-            </div>
-          )}
-
-          {/* Right Preview */}
-          {nextItem && !isExpanded && (
-            <div
-              className="fixed right-[calc(50%-720px)] top-1/2 -translate-y-1/2 z-[51] w-[280px] h-[420px] opacity-60 cursor-pointer transition-all duration-300 hover:opacity-80 hover:scale-105"
-              onClick={handleNext}
-            >
-              <Image
-                src={getPosterUrl(nextItem.poster_path, 'w500')}
-                alt={'title' in nextItem ? nextItem.title : nextItem.name}
-                fill
-                className="object-cover rounded-lg"
-              />
-              <div className="absolute inset-0 bg-gradient-to-l from-transparent to-black/50 rounded-lg" />
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Main Overlay Container */}
+      {/* Main Container - Full screen on mobile, centered modal on desktop */}
       <div
         ref={overlayRef}
-        className={`fixed z-[52] bg-black transition-all ${
-          isExpanded ? 'inset-0' : 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1280px] h-[720px] rounded-lg overflow-hidden shadow-2xl'
-        }`}
+        className="fixed inset-0 z-[52] lg:inset-8 lg:rounded-2xl overflow-hidden bg-[#0a0a0a]"
         style={{
           transform: isTransitioning
-            ? `translate(-50%, -50%) translateX(${slideDirection === 'left' ? '-100%' : slideDirection === 'right' ? '100%' : '0'})`
-            : isExpanded
-            ? 'none'
-            : 'translate(-50%, -50%)',
+            ? `translateX(${slideDirection === 'left' ? '-30px' : slideDirection === 'right' ? '30px' : '0'})`
+            : 'none',
           opacity: isTransitioning ? 0 : 1,
-          transitionProperty: 'transform, opacity',
-          transitionDuration: '500ms',
-          transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'transform 300ms ease-out, opacity 300ms ease-out',
         }}
         onClick={(e) => e.stopPropagation()}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-6 right-6 z-[60] w-12 h-12 flex items-center justify-center bg-black/70 hover:bg-black/90 rounded-full text-white text-xl transition-colors"
+          className="absolute top-4 right-4 lg:top-6 lg:right-6 z-[60] w-10 h-10 flex items-center justify-center bg-black/50 hover:bg-black/70 backdrop-blur-sm rounded-full text-white/80 hover:text-white transition-all"
         >
-          ✕
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
 
-        {/* Navigation Arrows */}
-        {currentIndex > 0 && (
-          <button
-            onClick={handlePrevious}
-            className="absolute left-6 top-1/2 -translate-y-1/2 z-[60] w-12 h-12 flex items-center justify-center bg-black/70 hover:bg-black/90 rounded-full text-white transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-        )}
-        {currentIndex < items.length - 1 && (
-          <button
-            onClick={handleNext}
-            className="absolute right-6 top-1/2 -translate-y-1/2 z-[60] w-12 h-12 flex items-center justify-center bg-black/70 hover:bg-black/90 rounded-full text-white transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        )}
+        {/* Navigation Arrows - Show when multiple items */}
+        {items.length > 1 && (
+          <>
+            {/* Previous Button */}
+            <button
+              onClick={handlePrevious}
+              disabled={currentIndex === 0}
+              className="hidden lg:flex absolute left-4 top-1/2 -translate-y-1/2 z-[60] w-12 h-12 items-center justify-center bg-black/50 hover:bg-black/70 backdrop-blur-sm rounded-full text-white/80 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
 
-        {/* Scrollable Content - Horizontal Layout */}
-        <div ref={scrollRef} className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700">
-          <div className="flex h-full min-h-[720px]">
-            {/* Left Side - Poster */}
-            <div className="relative w-[480px] flex-shrink-0">
-              <Image
-                src={getPosterUrl(details.poster_path, 'original')}
-                alt={title}
-                fill
-                className="object-cover"
-                priority
-              />
-              {/* Dark gradient overlay on poster */}
-              <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-black" />
+            {/* Next Button */}
+            <button
+              onClick={handleNext}
+              disabled={currentIndex === items.length - 1}
+              className="hidden lg:flex absolute right-4 top-1/2 -translate-y-1/2 z-[60] w-12 h-12 items-center justify-center bg-black/50 hover:bg-black/70 backdrop-blur-sm rounded-full text-white/80 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+
+            {/* Position indicator - Mobile only */}
+            <div className="lg:hidden absolute bottom-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-1.5">
+              {items.slice(Math.max(0, currentIndex - 2), Math.min(items.length, currentIndex + 3)).map((_, i) => {
+                const actualIndex = Math.max(0, currentIndex - 2) + i;
+                return (
+                  <div
+                    key={actualIndex}
+                    className={`w-1.5 h-1.5 rounded-full transition-all ${
+                      actualIndex === currentIndex ? 'bg-white w-4' : 'bg-white/40'
+                    }`}
+                  />
+                );
+              })}
             </div>
 
-            {/* Right Side - Content with backdrop */}
-            <div className="flex-1 relative">
-              {/* Backdrop Image */}
-              <div className="absolute inset-0">
-                <Image
-                  src={getBackdropUrl(details.backdrop_path, 'original')}
-                  alt={title}
-                  fill
-                  className="object-cover"
-                  priority
-                />
-                {/* Dark gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-r from-black via-black/90 to-black/80" />
-              </div>
+            {/* Swipe hint - Mobile, shown briefly */}
+            <div className="lg:hidden absolute top-1/2 -translate-y-1/2 left-0 right-0 flex justify-between px-2 pointer-events-none z-[55]">
+              {currentIndex > 0 && (
+                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </div>
+              )}
+              <div className="flex-1" />
+              {currentIndex < items.length - 1 && (
+                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
-              {/* Content */}
-              <div className="relative z-10 p-12 h-full overflow-y-auto">
-                {/* Title and Meta */}
-                <div className="mb-8">
-                  <h1 className="text-5xl font-bold leading-tight mb-6 text-white">{title}</h1>
+        {/* Scrollable Content */}
+        <div ref={scrollRef} className="h-full overflow-y-auto">
+          {/* Hero Section - Backdrop focused */}
+          <div className="relative h-[60vh] lg:h-[70vh]">
+            {/* Backdrop Image */}
+            <Image
+              src={getBackdropUrl(details.backdrop_path, 'original')}
+              alt={title}
+              fill
+              className="object-cover"
+              priority
+            />
 
-                  <div className="flex items-center gap-6 text-lg mb-6">
-                    <div className="flex items-center gap-2">
-                      <span className="text-yellow-400 text-xl">★</span>
-                      <span className="font-semibold text-white">{details.vote_average.toFixed(1)}</span>
-                    </div>
-                    <span className="text-[#d4af37] font-bold">{releaseYear}</span>
-                    {runtime && (
-                      <>
-                        <span className="text-gray-400">•</span>
-                        <span className="text-gray-300">{runtime}</span>
-                      </>
-                    )}
+            {/* Gradient overlays */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/60 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a]/80 via-transparent to-transparent" />
+
+            {/* Content over backdrop */}
+            <div className="absolute bottom-0 left-0 right-0 p-6 lg:px-20 lg:pb-12">
+              <div className="max-w-3xl">
+                {/* Favorite & Share - Above title */}
+                <div className="flex items-center gap-2 mb-6">
+                  {/* Favorite Button */}
+                  <div
+                    ref={favoriteContainerRef}
+                    className="flex items-center justify-center w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                  >
+                    <FavoriteButton
+                      tmdbId={id}
+                      mediaType={currentMediaType}
+                      title={title}
+                      posterPath={details.poster_path}
+                      size="md"
+                      onAuthRequired={onAuthRequired}
+                    />
                   </div>
 
-                  {/* Genres */}
-                  <div className="flex gap-3 mb-8">
-                    {truncateGenres(details.genres).map((genre) => (
-                      <span
-                        key={genre.id}
-                        className="px-4 py-2 bg-white/10 rounded-full text-sm font-medium border border-white/20 text-white backdrop-blur-sm"
-                      >
-                        {genre.name}
-                      </span>
-                    ))}
-                  </div>
+                  {/* Share Button */}
+                  <button
+                    onClick={handleShare}
+                    className="flex items-center justify-center w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+                    aria-label="Share"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                    </svg>
+                  </button>
+                </div>
 
-                  {/* Overview */}
-                  <p className="text-gray-200 leading-relaxed text-base max-w-2xl">
-                    {details.overview}
+                {/* Title */}
+                <h1 className="text-3xl lg:text-5xl font-bold text-white mb-2 leading-tight">
+                  {title}
+                </h1>
+
+                {/* Tagline */}
+                {details.tagline && (
+                  <p className="text-white/50 text-base lg:text-lg italic mb-4">
+                    {details.tagline}
                   </p>
+                )}
+
+                {/* Meta row */}
+                <div className="flex flex-wrap items-center gap-3 lg:gap-4 text-sm lg:text-base mb-5">
+                  {details.vote_average > 0 && (
+                    <span className="flex items-center gap-1.5 text-[#e69d2e]">
+                      <svg className="w-4 h-4 lg:w-5 lg:h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                      <span className="font-semibold">{details.vote_average.toFixed(1)}</span>
+                    </span>
+                  )}
+                  {releaseYear && (
+                    <span className="text-white/70">{releaseYear}</span>
+                  )}
+                  {runtime && (
+                    <>
+                      <span className="text-white/30">•</span>
+                      <span className="text-white/70">{runtime}</span>
+                    </>
+                  )}
+                </div>
+
+                {/* Genres */}
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {truncateGenres(details.genres).map((genre) => (
+                    <span
+                      key={genre.id}
+                      className="px-3 py-1 text-xs lg:text-sm text-white/70 bg-white/10 rounded-full"
+                    >
+                      {genre.name}
+                    </span>
+                  ))}
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex gap-4 mb-12">
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Play Trailer - Primary action */}
                   {trailer && (
                     <button
                       onClick={() => setShowTrailer(true)}
-                      className="px-8 py-4 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-all flex items-center gap-3 border border-white/20 backdrop-blur-sm"
+                      className="flex items-center gap-2 px-5 lg:px-6 py-3 bg-white text-black font-semibold rounded-lg hover:bg-white/90 transition-colors"
                     >
                       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M8 5v14l11-7z" />
                       </svg>
-                      <span className="text-base tracking-wide">Play Trailer</span>
+                      <span>Trailer</span>
                     </button>
                   )}
-                  <button
-                    onClick={handleWatchClick}
-                    className="px-8 py-4 bg-[#d4af37] hover:bg-[#c49f2f] text-black font-bold rounded-lg transition-all flex items-center gap-3"
-                  >
-                    <span className="text-base tracking-wide">Watch on</span>
-                    {primaryProvider && (
-                      <>
-                        <span className="text-base tracking-wide">{primaryProvider.provider_name}</span>
-                        <div className="flex items-center">
-                          <PlatformLogo platform={primaryProvider.provider_name} isSelected={true} size="badge" />
-                        </div>
-                      </>
-                    )}
-                  </button>
+
+                  {/* Watch Button */}
+                  {primaryProvider && (
+                    <button
+                      onClick={handleWatchClick}
+                      className="flex items-center gap-2 px-5 lg:px-6 py-3 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white font-medium rounded-lg transition-colors"
+                    >
+                      <PlatformLogo platform={primaryProvider.provider_name} isSelected={true} size="badge" logoPath={primaryProvider.logo_path} />
+                      <span>Watch on {primaryProvider.provider_name}</span>
+                    </button>
+                  )}
                 </div>
+              </div>
+            </div>
+          </div>
 
-                {/* Cast Section */}
-                {credits && credits.cast && credits.cast.length > 0 && (
-                  <div className="border-t border-white/10 pt-8">
-                    <h3 className="text-2xl font-semibold mb-6 text-white">Cast</h3>
+          {/* Details Section */}
+          <div className="px-6 lg:px-20 py-8 lg:py-10 space-y-10">
+            {/* Overview */}
+            {details.overview && (
+              <div className="max-w-3xl">
+                <h3 className="text-white/40 text-xs uppercase tracking-wider mb-3">Synopsis</h3>
+                <p className="text-white/80 text-base lg:text-lg leading-relaxed">
+                  {details.overview}
+                </p>
+              </div>
+            )}
 
-                    <div className="grid grid-cols-4 gap-6">
-                      {(showFullCast ? credits.cast : credits.cast.slice(0, 8)).map((person: any) => (
-                        <div key={person.id} className="text-center">
-                          {person.profile_path ? (
-                            <div className="relative w-full aspect-[2/3] rounded-lg overflow-hidden mb-3">
-                              <Image
-                                src={`https://image.tmdb.org/t/p/w185${person.profile_path}`}
-                                alt={person.name}
-                                fill
-                                className="object-cover"
-                              />
-                            </div>
-                          ) : (
-                            <div className="w-full aspect-[2/3] rounded-lg bg-gray-800 flex items-center justify-center mb-3">
-                              <span className="text-gray-500 text-4xl">{person.name.charAt(0)}</span>
-                            </div>
-                          )}
-                          <p className="text-sm font-medium mb-1 text-white">{person.name}</p>
-                          <p className="text-xs text-gray-400">{person.character}</p>
-                        </div>
-                      ))}
-                    </div>
+            {/* Info Grid - Director/Creator + Starring */}
+            {((director || creator) || credits?.cast?.length > 0) && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-3xl">
+                {/* Director/Creator */}
+                {(director || creator) && (
+                  <div>
+                    <h4 className="text-white/40 text-xs uppercase tracking-wider mb-2">
+                      {currentMediaType === 'tv' ? 'Creator' : 'Director'}
+                    </h4>
+                    <p className="text-white text-base font-medium">
+                      {director?.name || creator?.name}
+                    </p>
+                  </div>
+                )}
 
-                    {credits.cast.length > 8 && (
-                      <button
-                        onClick={() => setShowFullCast(!showFullCast)}
-                        className="mt-6 text-[#d4af37] hover:text-[#c49f2f] text-sm font-medium"
-                      >
-                        {showFullCast ? 'Show Less' : `Show All ${credits.cast.length} Cast Members`}
-                      </button>
-                    )}
+                {/* Top Cast - inline */}
+                {credits?.cast?.length > 0 && (
+                  <div>
+                    <h4 className="text-white/40 text-xs uppercase tracking-wider mb-2">Starring</h4>
+                    <p className="text-white text-base font-medium">
+                      {credits.cast.slice(0, 3).map((c: any) => c.name).join(', ')}
+                    </p>
                   </div>
                 )}
               </div>
-            </div>
+            )}
+
+            {/* Cast Section - Horizontal scroll */}
+            {credits?.cast?.length > 0 && (
+              <div>
+                <h3 className="text-white/40 text-xs uppercase tracking-wider mb-4">Full Cast</h3>
+                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-6 px-6 lg:-mx-20 lg:px-20">
+                  {credits.cast.slice(0, 12).map((person: any) => (
+                    <div key={person.id} className="flex-shrink-0 w-24 lg:w-28">
+                      <div className="relative w-full aspect-[2/3] rounded-lg overflow-hidden bg-white/5 mb-2">
+                        {person.profile_path ? (
+                          <Image
+                            src={`https://image.tmdb.org/t/p/w185${person.profile_path}`}
+                            alt={person.name}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-white/20 text-2xl">
+                            {person.name.charAt(0)}
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-white text-xs lg:text-sm font-medium truncate">{person.name}</p>
+                      <p className="text-white/50 text-xs truncate">{person.character}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* More Providers */}
+            {providers && (providers.flatrate?.length > 1 || providers.rent?.length > 0 || providers.buy?.length > 0) && (
+              <div>
+                <h3 className="text-white/40 text-xs uppercase tracking-wider mb-4">Available On</h3>
+                <div className="flex flex-wrap gap-3">
+                  {providers.flatrate?.map((p: any) => (
+                    <div
+                      key={p.provider_id}
+                      className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg"
+                    >
+                      <Image
+                        src={`https://image.tmdb.org/t/p/w92${p.logo_path}`}
+                        alt={p.provider_name}
+                        width={24}
+                        height={24}
+                        className="rounded"
+                      />
+                      <span className="text-white/80 text-sm">{p.provider_name}</span>
+                    </div>
+                  ))}
+                  {providers.rent?.slice(0, 3).map((p: any) => (
+                    <div
+                      key={p.provider_id}
+                      className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg"
+                    >
+                      <Image
+                        src={`https://image.tmdb.org/t/p/w92${p.logo_path}`}
+                        alt={p.provider_name}
+                        width={24}
+                        height={24}
+                        className="rounded"
+                      />
+                      <span className="text-white/80 text-sm">{p.provider_name}</span>
+                      <span className="text-white/40 text-xs">Rent</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -467,14 +569,16 @@ export default function DetailsOverlay({ items, initialIndex, mediaType, onClose
           onClick={() => setShowTrailer(false)}
         >
           <div
-            className="relative w-[90vw] max-w-[1400px] aspect-video"
+            className="relative w-[95vw] lg:w-[85vw] max-w-[1400px] aspect-video"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setShowTrailer(false)}
-              className="absolute -top-14 right-0 w-12 h-12 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+              className="absolute -top-12 right-0 w-10 h-10 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
             >
-              ✕
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
             <iframe
               src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1`}

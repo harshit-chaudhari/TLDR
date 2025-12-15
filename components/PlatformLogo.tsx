@@ -3,25 +3,59 @@ import Image from 'next/image';
 type PlatformLogoProps = {
   platform: string;
   isSelected: boolean;
-  size?: 'normal' | 'badge';  // badge size for content cards
+  size?: 'normal' | 'badge';
+  logoPath?: string | null; // TMDB logo_path from watch providers
 };
 
-const platformLogos: Record<string, string> = {
-  'JioHotstar': 'http://localhost:3845/assets/458657b1f44c3a0dff9d7a54132314a9b6f06ea9.png',
-  'NETFLIX': 'http://localhost:3845/assets/15c90598dae774a47b9db0f0ebc8017779432cdb.png',
-  'prime video': 'http://localhost:3845/assets/afc01bc0a6094827791e3e0aa0688fe6b8b981ed.png',
-  'Disney+': 'http://localhost:3845/assets/106f47f7c46ba7773f8ab4becabc97647a5e1630.png',
-  'hoichoi': 'http://localhost:3845/assets/e899a01cb3f6588b6c6e8c932fadfc657c57fad9.svg',
-  'Apple TV': 'http://localhost:3845/assets/e3fe09a513e9ca2952a42acc898639e00e9c6cf2.png',
-  'Zee5': 'http://localhost:3845/assets/15bb935e6fada6bdbf7975d12e9c22a94e07003a.png',
-  'SonyLIV': 'http://localhost:3845/assets/2c9b9adb78f2f18f065f47258cde81057469029f.png',
-  'Lionsgate Play': '',  // Fallback to text
-  'MX Player': '',  // Fallback to text
-  'Sun NXT': '',  // Fallback to text
+// TMDB logo paths for common platforms (fallback when logoPath not provided)
+const tmdbLogoPaths: Record<string, string> = {
+  'Netflix': '/t2yyOv40HZeVlLjYsCsPHnWLk4W.jpg',
+  'NETFLIX': '/t2yyOv40HZeVlLjYsCsPHnWLk4W.jpg',
+  'Amazon Prime Video': '/emthp39XA2YScoYL1p0sdbAH2WA.jpg',
+  'Prime Video': '/emthp39XA2YScoYL1p0sdbAH2WA.jpg',
+  'prime video': '/emthp39XA2YScoYL1p0sdbAH2WA.jpg',
+  'Disney Plus': '/7rwgEs15tFwyR9NPQ5vpzxTj19Q.jpg',
+  'Disney+': '/7rwgEs15tFwyR9NPQ5vpzxTj19Q.jpg',
+  'Hotstar': '/4QT7gMNTqZADHOdvvhRrE7zWMNW.jpg',
+  'JioHotstar': '/4QT7gMNTqZADHOdvvhRrE7zWMNW.jpg',
+  'Apple TV Plus': '/6uhKBfmtzFqOcLousHwZuzcrScK.jpg',
+  'Apple TV+': '/6uhKBfmtzFqOcLousHwZuzcrScK.jpg',
+  'Apple TV': '/peURlLlr8jggOwK53fJ5wdQl05y.jpg',
+  'Zee5': '/pxcLkrXYbgxOWlFkKXUAktZl1Lv.jpg',
+  'ZEE5': '/pxcLkrXYbgxOWlFkKXUAktZl1Lv.jpg',
+  'SonyLIV': '/tXp00b46AL7RLhpjYbAedEvhwOn.jpg',
+  'Sony Liv': '/tXp00b46AL7RLhpjYbAedEvhwOn.jpg',
+  'Hoichoi': '/d4vHcXY9rwnr763wQns2XJThclt.jpg',
+  'hoichoi': '/d4vHcXY9rwnr763wQns2XJThclt.jpg',
+  'Lionsgate Play': '/6IPjvnYl6WWkIwN158qBFXCr2Ne.jpg',
+  'MX Player': '/1XAJbNBk8IXjbVwTLbeREgPbDGn.jpg',
+  'Sun NXT': '/uW4dPCcbXaaFTyfL5d6WT1xnRNa.jpg',
+  'JioCinema': '/58aUMVWJRolhVpMIJil8tFvBNbP.jpg',
+  'Jio Cinema': '/58aUMVWJRolhVpMIJil8tFvBNbP.jpg',
+  'Voot': '/go2TLtFCPRrHkvBpMKj0PA6hv4k.jpg',
+  'Aha': '/1xH8KPdjTKxxVDuWGFLp3GJKT26.jpg',
+  'Crunchyroll': '/8Gt1iClBlzTeQs8WQm8rRwbNBMi.jpg',
+  'Mubi': '/bVR4Z1LCHY7gidXAJF5pMa4QrDS.jpg',
+  'HBO Max': '/Ajqyt5aNxNGjmF9uOfxArGrdf3X.jpg',
+  'Max': '/6Q3ZYUNA9Hsgj6iWnVsw2gR5V6z.jpg',
+  'Hulu': '/zxrVdFjIjLqkfnwyghnfywTn3Lh.jpg',
+  'Paramount+': '/xbhHHa1YgtpwhC8lb1NQ3ACVcLd.jpg',
+  'Paramount Plus': '/xbhHHa1YgtpwhC8lb1NQ3ACVcLd.jpg',
+  'Peacock': '/8VCV78prwd9QzZnEm0ReO6bERDa.jpg',
+  'YouTube': '/oIkQkEkwfmcG7IGpje5LCnBvF2a.jpg',
+  'Google Play Movies': '/tbEdFQDwx5LEVr8WpSeXQSIirVq.jpg',
+  'iTunes': '/peURlLlr8jggOwK53fJ5wdQl05y.jpg',
 };
 
-export function PlatformLogo({ platform, isSelected, size = 'normal' }: PlatformLogoProps) {
-  const logoUrl = platformLogos[platform];
+function getTmdbLogoUrl(logoPath: string | null | undefined): string | null {
+  if (!logoPath) return null;
+  return `https://image.tmdb.org/t/p/w92${logoPath}`;
+}
+
+export function PlatformLogo({ platform, isSelected, size = 'normal', logoPath }: PlatformLogoProps) {
+  // Priority: 1. Provided logoPath, 2. Fallback from our mapping
+  const finalLogoPath = logoPath || tmdbLogoPaths[platform];
+  const logoUrl = getTmdbLogoUrl(finalLogoPath);
 
   // Don't show badge if no logo
   if (!logoUrl) {
@@ -38,16 +72,13 @@ export function PlatformLogo({ platform, isSelected, size = 'normal' }: Platform
   // Badge size for content cards
   if (size === 'badge') {
     return (
-      <div className="bg-black/80 backdrop-blur-sm rounded px-2 py-1">
-        <div className="relative h-3 w-10 flex items-center justify-center">
-          <Image
-            src={logoUrl}
-            alt={platform}
-            fill
-            className="object-contain opacity-90"
-          />
-        </div>
-      </div>
+      <Image
+        src={logoUrl}
+        alt={platform}
+        width={20}
+        height={20}
+        className="rounded"
+      />
     );
   }
 
@@ -58,7 +89,7 @@ export function PlatformLogo({ platform, isSelected, size = 'normal' }: Platform
         src={logoUrl}
         alt={platform}
         fill
-        className={`object-contain ${isSelected ? 'opacity-100' : 'opacity-40'}`}
+        className={`object-contain rounded ${isSelected ? 'opacity-100' : 'opacity-40'}`}
         style={{
           filter: isSelected ? 'none' : 'grayscale(20%)',
           objectFit: 'contain',

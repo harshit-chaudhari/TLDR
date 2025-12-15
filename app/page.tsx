@@ -2,11 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { getTrendingByPlatformAndWeek, getPopularByPlatformAndDate, getUpcomingByPlatformAndDate, getPosterUrl, TMDBMovie, TMDBShow } from '@/lib/tmdb';
 import { PlatformLogo } from '@/components/PlatformLogo';
 import DetailsOverlay from '@/components/DetailsOverlay';
 import { SkeletonLoader } from '@/components/SkeletonLoader';
 import { extractDominantColor } from '@/lib/colorExtractor';
+import { Header } from '@/components/Header';
+import { FavoriteButton, FavoritedIndicator } from '@/components/FavoriteButton';
+import { AuthModal } from '@/components/AuthModal';
+import { useFavorites } from '@/hooks/useFavorites';
 
 type Section = 'top10' | 'new' | 'upcoming';
 type MediaType = 'movie' | 'tv';
@@ -14,6 +19,7 @@ type Platform = 'JioHotstar' | 'NETFLIX' | 'prime video' | 'Disney+' | 'hoichoi'
 type DurationFilter = 'This Week' | 'Last Week' | 'This Month' | 'Next Week';
 
 export default function Home() {
+  const { isFavorited } = useFavorites();
   const [activeSection, setActiveSection] = useState<Section>('top10');
   const [mediaType, setMediaType] = useState<MediaType>('movie');
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>('JioHotstar');
@@ -26,6 +32,7 @@ export default function Home() {
   const [overlayIndex, setOverlayIndex] = useState(0);
   const [hasInitialAnimationPlayed, setHasInitialAnimationPlayed] = useState(false);
   const [backgroundGradient, setBackgroundGradient] = useState('rgba(212, 175, 55, 0.35)');
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const [top10Movies, setTop10Movies] = useState<TMDBMovie[]>([]);
   const [top10Shows, setTop10Shows] = useState<TMDBShow[]>([]);
@@ -93,26 +100,8 @@ export default function Home() {
   const currentContent = getCurrentContent();
   const heroContent = mediaType === 'movie' ? top10Movies : top10Shows;
 
-  // Generate a gradient color based on title hash
-  const getGradientFromTitle = (title: string) => {
-    let hash = 0;
-    for (let i = 0; i < title.length; i++) {
-      hash = title.charCodeAt(i) + ((hash << 5) - hash);
-    }
-
-    const gradients = [
-      'from-purple-900/40 via-purple-700/30 to-purple-500/20',
-      'from-blue-900/40 via-blue-700/30 to-blue-500/20',
-      'from-green-900/40 via-green-700/30 to-green-500/20',
-      'from-red-900/40 via-red-700/30 to-red-500/20',
-      'from-yellow-900/40 via-yellow-700/30 to-yellow-500/20',
-      'from-pink-900/40 via-pink-700/30 to-pink-500/20',
-      'from-indigo-900/40 via-indigo-700/30 to-indigo-500/20',
-      'from-teal-900/40 via-teal-700/30 to-teal-500/20',
-    ];
-
-    return gradients[Math.abs(hash) % gradients.length];
-  };
+  // Fallback gradient - horizontal linear gradient from #1F1F1F to #181818
+  const fallbackGradient = 'from-[#1F1F1F] to-[#181818]';
 
   // Initial animation on page load
   useEffect(() => {
@@ -187,32 +176,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
-      <header className="h-[92px] bg-black border-b border-[#444444]">
-        <div className="h-full flex items-center">
-          {/* Left Section - TLDR Logo */}
-          <div className="w-[240px] h-full border-r border-[#444444] flex items-center justify-center px-[54px] py-[28px]">
-            <h1 className="text-[44px] font-bold leading-[0] text-transparent bg-clip-text bg-gradient-to-r from-[#e69d2e] to-[#a46e1d] uppercase" style={{ fontFamily: "'Bebas Neue', 'Gia Variable', sans-serif", textShadow: 'rgba(0,0,0,0.4) 0px 0px 36.202px' }}>
-              TLDR
-            </h1>
-          </div>
-
-          {/* Center Section - Heading */}
-          <div className="flex-1 h-full border-r border-[#444444] flex items-center justify-center px-[40px] py-[28px]">
-            <h2 className="text-[28px] font-bold leading-none tracking-[12.32px] uppercase whitespace-nowrap text-transparent bg-clip-text bg-gradient-to-r from-[rgba(255,255,255,0.72)] via-[#ffffff] to-[rgba(255,255,255,0.8)]" style={{ fontFamily: "'Red Hat Display', sans-serif" }}>
-              TOP TEN TRENDING TITLES
-            </h2>
-          </div>
-
-          {/* Right Section - Top 10 Button */}
-          <div className="w-[240px] h-full flex items-center justify-center px-[54px] py-[28px]">
-            <button className="relative backdrop-blur-[9.057px] bg-gradient-to-r from-[rgba(0,0,0,0.008)] via-[rgba(0,0,0,0.01)] to-[rgba(0,0,0,0.008)] border-[1.5px] border-solid border-[#e69d2e] rounded-[32px] px-[24px] py-[12px] hover:from-[rgba(230,157,46,0.1)] hover:via-[rgba(230,157,46,0.15)] hover:to-[rgba(230,157,46,0.1)] transition-all whitespace-nowrap">
-              <span className="text-[18px] font-bold tracking-[5.4px] uppercase text-transparent bg-clip-text bg-gradient-to-r from-[#e69d2e] to-[#a46e1d]" style={{ fontFamily: "'Red Hat Display', sans-serif" }}>
-                Top 10
-              </span>
-            </button>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* Hero Section - Infinite Carousel with Overlapping Posters */}
       <section className="relative h-[783px] bg-black overflow-hidden py-12">
@@ -334,7 +298,7 @@ export default function Home() {
           </button>
           <button
             onClick={() => setActiveSection('top10')}
-            className={`w-[480px] h-[84px] flex items-center justify-center transition-all ${
+            className={`w-[480px] h-[84px] flex items-center justify-center border-l border-[#444] transition-all ${
               activeSection === 'top10' ? 'border-b-2 border-b-[#e69d2e]' : ''
             }`}
           >
@@ -505,7 +469,7 @@ export default function Home() {
             </div>
 
             {/* Platform Pills - Single Row (only platforms with logos) */}
-            <div className="flex border-t border-b border-[#444]">
+            <div className="flex border-t border-b border-l border-r border-[#444]">
               {(['JioHotstar', 'NETFLIX', 'prime video', 'Disney+', 'hoichoi', 'Apple TV', 'Zee5', 'SonyLIV'] as Platform[]).map((platform) => {
                 const isSelected = selectedPlatform === platform;
 
@@ -541,7 +505,6 @@ export default function Home() {
                 const title = 'title' in item ? item.title : item.name;
                 const hasPoster = item.poster_path !== null;
                 const posterUrl = getPosterUrl(item.poster_path);
-                const gradientClass = getGradientFromTitle(title);
 
                 return (
                   <div
@@ -567,7 +530,7 @@ export default function Home() {
                         </>
                       ) : (
                         /* Fallback card with gradient background and title */
-                        <div className={`absolute inset-0 bg-gradient-to-br ${gradientClass} flex items-center justify-center p-8`}>
+                        <div className={`absolute inset-0 bg-gradient-to-r ${fallbackGradient} flex items-center justify-center p-8`}>
                           <h3 className="text-white text-2xl font-bold text-center uppercase tracking-[0.2em] leading-tight">
                             {title}
                           </h3>
@@ -576,6 +539,19 @@ export default function Home() {
                       {/* Platform Logo Badge */}
                       <div className="absolute top-3 right-3">
                         <PlatformLogo platform={selectedPlatform} isSelected={true} size="badge" />
+                      </div>
+                      {/* Favorited Indicator */}
+                      {isFavorited(item.id, mediaType) && <FavoritedIndicator />}
+                      {/* Favorite Button - shown on hover */}
+                      <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                        <FavoriteButton
+                          tmdbId={item.id}
+                          mediaType={mediaType}
+                          title={title}
+                          posterPath={item.poster_path}
+                          size="sm"
+                          onAuthRequired={() => setShowAuthModal(true)}
+                        />
                       </div>
                       {/* Rank Badge - Large and Prominent */}
                       <div className="absolute top-0 left-0 w-24 h-24">
@@ -598,16 +574,15 @@ export default function Home() {
             </div>
           ) : activeSection === 'new' ? (
             <div className="grid grid-cols-6 gap-4">
-              {currentContent.slice(0, 18).map((item, index) => {
+              {currentContent.map((item, index) => {
                 const title = 'title' in item ? item.title : item.name;
                 const hasPoster = item.poster_path !== null;
                 const posterUrl = getPosterUrl(item.poster_path);
-                const gradientClass = getGradientFromTitle(title);
 
                 return (
                   <div
                     key={item.id}
-                    className="relative overflow-hidden rounded-lg"
+                    className="relative overflow-hidden rounded-lg shadow-[0_20px_50px_rgba(0,0,0,1)]"
                     onClick={() => openOverlay(index)}
                   >
                     <div className="relative aspect-[2/3] bg-[#0a0a0a] group cursor-pointer overflow-hidden rounded-lg">
@@ -628,7 +603,7 @@ export default function Home() {
                         </>
                       ) : (
                         /* Fallback card with gradient background and title */
-                        <div className={`absolute inset-0 bg-gradient-to-br ${gradientClass} flex items-center justify-center p-6`}>
+                        <div className={`absolute inset-0 bg-gradient-to-r ${fallbackGradient} flex items-center justify-center p-6`}>
                           <h3 className="text-white text-xl font-bold text-center uppercase tracking-[0.2em] leading-tight">
                             {title}
                           </h3>
@@ -637,6 +612,19 @@ export default function Home() {
                       {/* Platform Logo Badge */}
                       <div className="absolute top-2 right-2">
                         <PlatformLogo platform={selectedPlatform} isSelected={true} size="badge" />
+                      </div>
+                      {/* Favorited Indicator */}
+                      {isFavorited(item.id, mediaType) && <FavoritedIndicator />}
+                      {/* Favorite Button - shown on hover */}
+                      <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                        <FavoriteButton
+                          tmdbId={item.id}
+                          mediaType={mediaType}
+                          title={title}
+                          posterPath={item.poster_path}
+                          size="sm"
+                          onAuthRequired={() => setShowAuthModal(true)}
+                        />
                       </div>
                     </div>
                   </div>
@@ -656,7 +644,6 @@ export default function Home() {
                     const title = 'title' in item ? item.title : item.name;
                     const hasPoster = item.poster_path !== null;
                     const posterUrl = getPosterUrl(item.poster_path);
-                    const gradientClass = getGradientFromTitle(title);
                     const releaseDate = 'release_date' in item ? item.release_date : item.first_air_date;
                     const dateObj = releaseDate ? new Date(releaseDate) : null;
                     const monthDay = dateObj ? dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'TBA';
@@ -688,7 +675,7 @@ export default function Home() {
                               </>
                             ) : (
                               /* Fallback card with gradient background and title */
-                              <div className={`absolute inset-0 bg-gradient-to-br ${gradientClass} flex items-center justify-center p-6`}>
+                              <div className={`absolute inset-0 bg-gradient-to-r ${fallbackGradient} flex items-center justify-center p-6`}>
                                 <h3 className="text-white text-lg font-bold text-center uppercase tracking-[0.2em] leading-tight">
                                   {title}
                                 </h3>
@@ -697,6 +684,19 @@ export default function Home() {
                             {/* Platform Logo Badge */}
                             <div className="absolute top-2 right-2">
                               <PlatformLogo platform={selectedPlatform} isSelected={true} size="badge" />
+                            </div>
+                            {/* Favorited Indicator */}
+                            {isFavorited(item.id, mediaType) && <FavoritedIndicator />}
+                            {/* Favorite Button - shown on hover */}
+                            <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                              <FavoriteButton
+                                tmdbId={item.id}
+                                mediaType={mediaType}
+                                title={title}
+                                posterPath={item.poster_path}
+                                size="sm"
+                                onAuthRequired={() => setShowAuthModal(true)}
+                              />
                             </div>
                           </div>
                           {/* Title below poster */}
@@ -757,6 +757,30 @@ export default function Home() {
         </div>
       </footer>
 
+      {/* Floating Trailers Button */}
+      <Link
+        href="/reels"
+        className="group fixed right-0 top-1/2 -translate-y-1/2 z-50"
+        aria-label="Watch trailers"
+      >
+        <div className="flex items-center gap-2.5 pl-4 pr-5 py-3 rounded-l-full bg-black/60 backdrop-blur-xl border border-[#e69d2e]/30 border-r-0 transition-all duration-300 ease-out hover:bg-black/70 hover:border-[#e69d2e]/50 hover:pl-5 hover:pr-6">
+          {/* Play icon with golden accent */}
+          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-[#e69d2e]">
+            <svg
+              className="w-3 h-3 text-white ml-0.5"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </div>
+          {/* Text */}
+          <span className="text-white/90 text-sm font-medium">
+            Trailers
+          </span>
+        </div>
+      </Link>
+
       {/* Details Overlay */}
       {showOverlay && (
         <DetailsOverlay
@@ -764,8 +788,15 @@ export default function Home() {
           initialIndex={overlayIndex}
           mediaType={mediaType}
           onClose={closeOverlay}
+          onAuthRequired={() => setShowAuthModal(true)}
         />
       )}
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+      />
     </div>
   );
 }
