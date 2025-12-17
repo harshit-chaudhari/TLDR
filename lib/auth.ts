@@ -16,10 +16,11 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account, profile, trigger, session }) {
       // Initial sign in - populate token from Google profile
       if (account && profile) {
-        token.id = profile.sub || account.providerAccountId;
-        token.email = profile.email;
-        token.name = profile.name;
-        token.picture = profile.picture;
+        const googleProfile = profile as { sub?: string; email?: string; name?: string; picture?: string };
+        token.id = googleProfile.sub || account.providerAccountId;
+        token.email = googleProfile.email;
+        token.name = googleProfile.name;
+        token.picture = googleProfile.picture;
       }
 
       // Update token when session is updated

@@ -12,12 +12,15 @@ import {
   TMDBProfileSize,
 } from '@/types/tmdb';
 
-const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_API_BASE_URL = process.env.TMDB_API_BASE_URL || 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE_URL = process.env.TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p';
 
-if (!TMDB_API_KEY) {
-  throw new Error('TMDB_API_KEY is not defined in environment variables');
+function getApiKey(): string {
+  const apiKey = process.env.TMDB_API_KEY;
+  if (!apiKey) {
+    throw new Error('TMDB_API_KEY is not defined in environment variables');
+  }
+  return apiKey;
 }
 
 /**
@@ -25,7 +28,7 @@ if (!TMDB_API_KEY) {
  */
 function buildUrl(endpoint: string, params: Record<string, string> = {}): string {
   const url = new URL(`${TMDB_API_BASE_URL}${endpoint}`);
-  url.searchParams.append('api_key', TMDB_API_KEY!);
+  url.searchParams.append('api_key', getApiKey());
 
   Object.entries(params).forEach(([key, value]) => {
     url.searchParams.append(key, value);
