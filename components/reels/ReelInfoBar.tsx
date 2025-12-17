@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { ReelItem } from '@/hooks/useReels';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import { PlatformLogo } from '@/components/PlatformLogo';
@@ -9,20 +9,86 @@ interface ReelInfoBarProps {
   item: ReelItem;
   isMuted: boolean;
   isExpanded: boolean;
+  showProgressBar?: boolean;
   onMuteToggle: () => void;
   onInfoClick: () => void;
   onAuthRequired?: () => void;
+  progress?: number;
+  onSeek?: (percentage: number) => void;
 }
 
 export function ReelInfoBar({
   item,
   isMuted,
+  showProgressBar = true,
   onMuteToggle,
   onInfoClick,
   onAuthRequired,
+  progress = 0,
+  onSeek,
 }: ReelInfoBarProps) {
   const [showCopied, setShowCopied] = useState(false);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [isHoveringProgress, setIsHoveringProgress] = useState(false);
   const favoriteContainerRef = useRef<HTMLDivElement>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+
+  // Handle progress bar seek
+  const handleProgressInteraction = useCallback((e: React.MouseEvent | MouseEvent) => {
+    if (!progressBarRef.current || !onSeek) return;
+    const rect = progressBarRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const percentage = (x / rect.width) * 100;
+    onSeek(percentage);
+  }, [onSeek]);
+
+  const handleProgressMouseDown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsSeeking(true);
+    handleProgressInteraction(e);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      handleProgressInteraction(moveEvent);
+    };
+
+    const handleMouseUp = () => {
+      setIsSeeking(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [handleProgressInteraction]);
+
+  const handleProgressTouchStart = useCallback((e: React.TouchEvent) => {
+    e.stopPropagation();
+    if (!progressBarRef.current || !onSeek) return;
+    setIsSeeking(true);
+    const rect = progressBarRef.current.getBoundingClientRect();
+    const touch = e.touches[0];
+    const x = Math.max(0, Math.min(touch.clientX - rect.left, rect.width));
+    const percentage = (x / rect.width) * 100;
+    onSeek(percentage);
+
+    const handleTouchMove = (moveEvent: TouchEvent) => {
+      if (!progressBarRef.current) return;
+      const rect = progressBarRef.current.getBoundingClientRect();
+      const touch = moveEvent.touches[0];
+      const x = Math.max(0, Math.min(touch.clientX - rect.left, rect.width));
+      const percentage = (x / rect.width) * 100;
+      onSeek(percentage);
+    };
+
+    const handleTouchEnd = () => {
+      setIsSeeking(false);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+
+    document.addEventListener('touchmove', handleTouchMove);
+    document.addEventListener('touchend', handleTouchEnd);
+  }, [onSeek]);
 
   // Listen for keyboard shortcut 'L' to toggle favorite
   useEffect(() => {
@@ -50,7 +116,7 @@ export function ReelInfoBar({
   }, [item.id, item.mediaType]);
 
   const handleShare = async () => {
-    const shareUrl = `${window.location.origin}/reels?id=${item.id}&type=${item.mediaType}`;
+    const shareUrl = `${window.location.origin}/previews?id=${item.id}&type=${item.mediaType}`;
     const shareData = {
       title: item.title,
       text: `Check out ${item.title} on TLDR`,
@@ -72,17 +138,60 @@ export function ReelInfoBar({
 
   return (
     <div className="absolute bottom-0 left-0 right-0 z-20">
-      {/* Progressive blur background (bottom to top) */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-transparent backdrop-blur-sm" />
+      {/* Progressive blur background - multiple layers for smooth fade */}
+      <div className="absolute inset-0 pointer-events-none">
+        {/* Base gradient - solid at bottom, fades up */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent" />
+        {/* Extended blur zone that fades out */}
+        <div
+          className="absolute inset-0 backdrop-blur-md"
+          style={{
+            maskImage: 'linear-gradient(to top, black 0%, black 40%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to top, black 0%, black 40%, transparent 100%)'
+          }}
+        />
+      </div>
+
+      {/* Progress Bar - at top of info panel */}
+      <div
+        className={`relative px-4 lg:px-6 pt-3 transition-opacity duration-300 ${
+          showProgressBar || isHoveringProgress || isSeeking ? 'opacity-100' : 'opacity-0'
+        }`}
+        onMouseEnter={() => setIsHoveringProgress(true)}
+        onMouseLeave={() => setIsHoveringProgress(false)}
+      >
+        <div
+          ref={progressBarRef}
+          className={`relative bg-white/20 rounded-full cursor-pointer transition-all duration-200 ${
+            isHoveringProgress || isSeeking ? 'h-1.5' : 'h-[3px]'
+          }`}
+          onMouseDown={handleProgressMouseDown}
+          onTouchStart={handleProgressTouchStart}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Progress fill */}
+          <div
+            className="absolute top-0 left-0 h-full bg-[#e69d2e] rounded-full"
+            style={{ width: `${progress}%` }}
+          />
+          {/* Thumb */}
+          <div
+            className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg transition-all duration-200 ${
+              isHoveringProgress || isSeeking ? 'scale-100 opacity-100' : 'scale-0 opacity-0'
+            }`}
+            style={{ left: `calc(${progress}% - 6px)` }}
+          />
+        </div>
+      </div>
 
       {/* Single row: Title/meta on left, controls on right */}
       <div className="relative px-4 py-4 lg:px-6 flex items-center justify-between gap-4">
         {/* Left: Title + meta */}
         <div className="flex-1 min-w-0">
-          <h2 className="text-white text-xl lg:text-2xl font-semibold truncate">
+          <h2 className="text-white text-2xl lg:text-[28px] font-semibold truncate">
             {item.title}
           </h2>
-          <div className="flex items-center gap-2 text-white/60 text-base">
+          <div className="flex items-center gap-2 text-white/60 text-base font-medium mt-2.5">
             {item.voteAverage > 0 && (
               <span className="flex items-center gap-1 text-[#e69d2e]">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">

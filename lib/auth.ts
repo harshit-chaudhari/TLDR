@@ -1,10 +1,8 @@
 import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
-import { PrismaAdapter } from '@auth/prisma-adapter';
-import prisma from './prisma';
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as any,
+  // No database adapter - using JWT sessions only
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -15,12 +13,13 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
   },
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
-      // Initial sign in
-      if (user) {
-        token.id = user.id;
-        token.username = user.username;
-        token.profilePicture = user.profilePicture;
+    async jwt({ token, user, account, profile, trigger, session }) {
+      // Initial sign in - populate token from Google profile
+      if (account && profile) {
+        token.id = profile.sub || account.providerAccountId;
+        token.email = profile.email;
+        token.name = profile.name;
+        token.picture = profile.picture;
       }
 
       // Update token when session is updated
@@ -34,6 +33,9 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
+        session.user.email = token.email as string;
+        session.user.name = token.name as string;
+        session.user.image = token.picture as string;
         session.user.username = token.username as string | null;
         session.user.profilePicture = token.profilePicture as string | null;
       }

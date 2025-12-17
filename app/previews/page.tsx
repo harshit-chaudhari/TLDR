@@ -8,7 +8,7 @@ import { ReelsFeed } from '@/components/reels/ReelsFeed';
 import { AuthModal } from '@/components/AuthModal';
 import { useAuth } from '@/hooks/useAuth';
 
-export default function PeekPage() {
+export default function PreviewsPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -66,8 +66,12 @@ export default function PeekPage() {
               share
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px]">D</kbd>
+              <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px]">Enter</kbd>
               details
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px]">F</kbd>
+              fullscreen
             </span>
           </div>
 

@@ -16,11 +16,13 @@ interface ReelsFeedProps {
 export function ReelsFeed({ onAuthRequired }: ReelsFeedProps) {
   const { items, isLoading, error, hasMore, loadMore } = useReels();
   const containerRef = useRef<HTMLDivElement>(null);
+  const feedContainerRef = useRef<HTMLDivElement>(null);
   const reelRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const playerRefs = useRef<Map<number, ReelVideoPlayerHandle>>(new Map());
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Prevent rapid scroll changes
   const isScrollingRef = useRef(false);
@@ -29,6 +31,21 @@ export function ReelsFeed({ onAuthRequired }: ReelsFeedProps) {
   // Details overlay state
   const [showDetails, setShowDetails] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ReelItemType | null>(null);
+
+  // Auto-advance state - track if user has interacted
+  const hasUserInteractedRef = useRef(false);
+  const autoAdvanceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [showEndFrame, setShowEndFrame] = useState(false);
+
+  // Mark user as having interacted (stops auto-advance)
+  const markUserInteraction = useCallback(() => {
+    hasUserInteractedRef.current = true;
+    // Clear any pending auto-advance
+    if (autoAdvanceTimeoutRef.current) {
+      clearTimeout(autoAdvanceTimeoutRef.current);
+      autoAdvanceTimeoutRef.current = null;
+    }
+  }, []);
 
   // Pause all videos except the current one
   const pauseAllExcept = useCallback((exceptIndex: number) => {
@@ -94,6 +111,10 @@ export function ReelsFeed({ onAuthRequired }: ReelsFeedProps) {
       clearTimeout(scrollTimeoutRef.current);
     }
 
+    // Reset user interaction flag for next trailer's auto-advance
+    hasUserInteractedRef.current = false;
+    setShowEndFrame(false);
+
     // Pause all videos immediately
     pauseAllExcept(index);
 
@@ -110,6 +131,68 @@ export function ReelsFeed({ onAuthRequired }: ReelsFeedProps) {
       isScrollingRef.current = false;
     }, 500);
   }, [items, pauseAllExcept]);
+
+  // Fullscreen toggle function - defined BEFORE keyboard effect that uses it
+  const toggleFullscreen = useCallback(async () => {
+    const container = feedContainerRef.current;
+    if (!container) return;
+
+    try {
+      if (!document.fullscreenElement) {
+        await container.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (err) {
+      console.error('Fullscreen error:', err);
+    }
+  }, []);
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // handleInfoClick - defined BEFORE keyboard effect that uses it
+  const handleInfoClick = useCallback((item: ReelItemType) => {
+    // Mark as user interaction to stop auto-advance
+    markUserInteraction();
+    // Pause current video when opening details
+    const playerRef = playerRefs.current.get(item.id);
+    playerRef?.pause();
+    setSelectedItem(item);
+    setShowDetails(true);
+  }, [markUserInteraction]);
+
+  // Handle video end - show end frame then auto-advance if no interaction
+  const handleVideoEnd = useCallback((itemId: number) => {
+    // Only process if this is the current video
+    const itemIndex = items.findIndex(item => item.id === itemId);
+    if (itemIndex !== currentIndex) return;
+
+    // If user has interacted, don't auto-advance
+    if (hasUserInteractedRef.current) return;
+
+    // If this is the last item, don't auto-advance
+    if (currentIndex >= items.length - 1) return;
+
+    // Show end frame indicator
+    setShowEndFrame(true);
+
+    // Auto-advance after delay (800-1000ms)
+    autoAdvanceTimeoutRef.current = setTimeout(() => {
+      setShowEndFrame(false);
+      // Double-check user hasn't interacted during the delay
+      if (!hasUserInteractedRef.current) {
+        scrollToIndex(currentIndex + 1);
+      }
+    }, 1000);
+  }, [items, currentIndex, scrollToIndex]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -130,6 +213,7 @@ export function ReelsFeed({ onAuthRequired }: ReelsFeedProps) {
       // Spacebar for play/pause
       else if (e.key === ' ' || e.code === 'Space') {
         e.preventDefault();
+        markUserInteraction(); // User paused - stop auto-advance
         const currentItem = items[currentIndex];
         if (currentItem) {
           const playerRef = playerRefs.current.get(currentItem.id);
@@ -139,11 +223,13 @@ export function ReelsFeed({ onAuthRequired }: ReelsFeedProps) {
       // M for mute
       else if (e.key === 'm' || e.key === 'M') {
         e.preventDefault();
+        markUserInteraction(); // User toggled mute - stop auto-advance
         setIsMuted((prev) => !prev);
       }
       // L for like/favorite
       else if (e.key === 'l' || e.key === 'L') {
         e.preventDefault();
+        markUserInteraction(); // User liked - stop auto-advance
         // Trigger favorite on current item - dispatch custom event
         const currentItem = items[currentIndex];
         if (currentItem) {
@@ -162,40 +248,50 @@ export function ReelsFeed({ onAuthRequired }: ReelsFeedProps) {
           }));
         }
       }
-      // D for details
-      else if (e.key === 'd' || e.key === 'D') {
+      // Enter for details
+      else if (e.key === 'Enter') {
         e.preventDefault();
         const currentItem = items[currentIndex];
         if (currentItem) {
           handleInfoClick(currentItem);
         }
       }
-      // Escape to go back
+      // F for fullscreen (our custom fullscreen with info panel)
+      else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+      // Escape to exit fullscreen or go back
       else if (e.key === 'Escape') {
-        window.location.href = '/';
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else {
+          window.location.href = '/';
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, showDetails, items, scrollToIndex]);
+  }, [currentIndex, showDetails, items, scrollToIndex, toggleFullscreen, handleInfoClick, markUserInteraction]);
 
-  // Cleanup timeout on unmount
+  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
       }
+      if (autoAdvanceTimeoutRef.current) {
+        clearTimeout(autoAdvanceTimeoutRef.current);
+      }
     };
   }, []);
 
-  const handleInfoClick = useCallback((item: ReelItemType) => {
-    // Pause current video when opening details
-    const playerRef = playerRefs.current.get(item.id);
-    playerRef?.pause();
-    setSelectedItem(item);
-    setShowDetails(true);
-  }, []);
+  // Wrapper for mute change that tracks interaction
+  const handleMuteChange = useCallback((muted: boolean) => {
+    markUserInteraction();
+    setIsMuted(muted);
+  }, [markUserInteraction]);
 
   const setReelRef = useCallback((id: number, el: HTMLDivElement | null) => {
     if (el) {
@@ -246,7 +342,7 @@ export function ReelsFeed({ onAuthRequired }: ReelsFeedProps) {
   }
 
   return (
-    <>
+    <div ref={feedContainerRef} className="relative bg-[#0a0a0a]">
       <div
         ref={containerRef}
         className="h-[100dvh] overflow-y-scroll snap-y snap-mandatory scrollbar-hide"
@@ -262,10 +358,12 @@ export function ReelsFeed({ onAuthRequired }: ReelsFeedProps) {
             item={item}
             isVisible={index === currentIndex}
             isMuted={isMuted}
-            onMuteChange={setIsMuted}
+            isFullscreen={isFullscreen}
+            onMuteChange={handleMuteChange}
             onInfoClick={() => handleInfoClick(item)}
             onAuthRequired={onAuthRequired}
             onPlayerRef={(ref) => setPlayerRef(item.id, ref)}
+            onVideoEnd={() => handleVideoEnd(item.id)}
           />
         ))}
 
@@ -297,7 +395,60 @@ export function ReelsFeed({ onAuthRequired }: ReelsFeedProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
+        {/* Fullscreen toggle */}
+        <button
+          onClick={toggleFullscreen}
+          className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all"
+          aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          title="Fullscreen (F)"
+        >
+          {isFullscreen ? (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+            </svg>
+          )}
+        </button>
       </div>
+
+      {/* Auto-advance transition indicator */}
+      {showEndFrame && (
+        <div className="fixed inset-x-0 bottom-32 z-50 flex justify-center pointer-events-none">
+          <div className="flex items-center gap-3 px-5 py-3 bg-black/70 backdrop-blur-md rounded-full border border-white/10 animate-fade-in">
+            <div className="relative w-5 h-5">
+              {/* Circular progress indicator */}
+              <svg className="w-5 h-5 -rotate-90" viewBox="0 0 20 20">
+                <circle
+                  cx="10"
+                  cy="10"
+                  r="8"
+                  fill="none"
+                  stroke="rgba(255,255,255,0.2)"
+                  strokeWidth="2"
+                />
+                <circle
+                  cx="10"
+                  cy="10"
+                  r="8"
+                  fill="none"
+                  stroke="#e69d2e"
+                  strokeWidth="2"
+                  strokeDasharray="50.27"
+                  strokeDashoffset="50.27"
+                  className="animate-progress-circle"
+                />
+              </svg>
+            </div>
+            <span className="text-white/90 text-sm font-medium">Next trailer</span>
+            <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </div>
+      )}
 
       {/* Details Overlay */}
       {showDetails && selectedItem && (
@@ -323,6 +474,6 @@ export function ReelsFeed({ onAuthRequired }: ReelsFeedProps) {
           }}
         />
       )}
-    </>
+    </div>
   );
 }

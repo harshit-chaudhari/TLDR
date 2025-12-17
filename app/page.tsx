@@ -536,10 +536,6 @@ export default function Home() {
                           </h3>
                         </div>
                       )}
-                      {/* Platform Logo Badge */}
-                      <div className="absolute top-3 right-3">
-                        <PlatformLogo platform={selectedPlatform} isSelected={true} size="badge" />
-                      </div>
                       {/* Favorited Indicator */}
                       {isFavorited(item.id, mediaType) && <FavoritedIndicator />}
                       {/* Favorite Button - shown on hover */}
@@ -609,10 +605,6 @@ export default function Home() {
                           </h3>
                         </div>
                       )}
-                      {/* Platform Logo Badge */}
-                      <div className="absolute top-2 right-2">
-                        <PlatformLogo platform={selectedPlatform} isSelected={true} size="badge" />
-                      </div>
                       {/* Favorited Indicator */}
                       {isFavorited(item.id, mediaType) && <FavoritedIndicator />}
                       {/* Favorite Button - shown on hover */}
@@ -681,10 +673,6 @@ export default function Home() {
                                 </h3>
                               </div>
                             )}
-                            {/* Platform Logo Badge */}
-                            <div className="absolute top-2 right-2">
-                              <PlatformLogo platform={selectedPlatform} isSelected={true} size="badge" />
-                            </div>
                             {/* Favorited Indicator */}
                             {isFavorited(item.id, mediaType) && <FavoritedIndicator />}
                             {/* Favorite Button - shown on hover */}
@@ -757,26 +745,49 @@ export default function Home() {
         </div>
       </footer>
 
-      {/* Floating Trailers Button */}
+      {/* Previews Button - Right edge tab emerging from side */}
       <Link
-        href="/reels"
+        href="/previews"
         className="group fixed right-0 top-1/2 -translate-y-1/2 z-50"
-        aria-label="Watch trailers"
+        aria-label="Watch previews"
       >
-        <div className="flex items-center gap-2.5 pl-4 pr-5 py-3 rounded-l-full bg-black/60 backdrop-blur-xl border border-[#e69d2e]/30 border-r-0 transition-all duration-300 ease-out hover:bg-black/70 hover:border-[#e69d2e]/50 hover:pl-5 hover:pr-6">
-          {/* Play icon with golden accent */}
-          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-[#e69d2e]">
-            <svg
-              className="w-3 h-3 text-white ml-0.5"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path d="M8 5v14l11-7z" />
-            </svg>
+        <div className="relative flex items-center gap-3 pl-4 pr-5 py-3 rounded-l-full bg-black/70 backdrop-blur-xl border border-r-0 border-[#e69d2e]/25 transition-all duration-400 ease-out hover:pl-5 hover:bg-black/80 hover:border-[#e69d2e]/40 hover:shadow-[0_4px_24px_rgba(230,157,46,0.12)]">
+          {/* Subtle gold inner glow */}
+          <div className="absolute inset-0 rounded-l-full bg-gradient-to-r from-[#e69d2e]/[0.06] to-transparent pointer-events-none" />
+
+          {/* Stacked frames + play icon - interactive on hover */}
+          <div className="relative flex items-center justify-center w-11 h-11 rounded-full bg-gradient-to-br from-[rgba(230,157,46,0.08)] to-[rgba(164,110,29,0.05)] border border-[#e69d2e]/30 transition-all duration-300 shadow-[0_2px_12px_rgba(0,0,0,0.5)] group-hover:border-[#e69d2e]/50 group-hover:from-[rgba(230,157,46,0.12)] group-hover:to-[rgba(164,110,29,0.08)]">
+            <div className="relative w-[24px] h-[19px] flex items-center justify-center">
+              {/* Back frame (3rd) - faintest golden */}
+              <div className="absolute transition-transform duration-300 group-hover:translate-x-[1.5px] group-hover:-translate-y-[1.5px]" style={{ top: '0px', left: '4px' }}>
+                <svg className="w-[18px] h-[13px]" viewBox="0 0 18 13">
+                  <rect x="0.5" y="0.5" width="17" height="12" rx="1.5" fill="#e69d2e" fillOpacity="0.25" stroke="#e69d2e" strokeWidth={0.75} strokeOpacity="0.4" />
+                </svg>
+              </div>
+              {/* Middle frame (2nd) - medium golden */}
+              <div className="absolute transition-transform duration-300 group-hover:translate-x-[0.75px] group-hover:-translate-y-[0.75px]" style={{ top: '3px', left: '2px' }}>
+                <svg className="w-[18px] h-[13px]" viewBox="0 0 18 13">
+                  <rect x="0.5" y="0.5" width="17" height="12" rx="1.5" fill="#e69d2e" fillOpacity="0.45" stroke="#e69d2e" strokeWidth={0.75} strokeOpacity="0.6" />
+                </svg>
+              </div>
+              {/* Front frame (1st) - full golden */}
+              <div className="absolute transition-transform duration-300 group-hover:-translate-x-[0.75px] group-hover:translate-y-[0.75px]" style={{ top: '6px', left: '0px' }}>
+                <svg className="w-[18px] h-[13px]" viewBox="0 0 18 13">
+                  <rect x="0.5" y="0.5" width="17" height="12" rx="1.5" fill="#e69d2e" fillOpacity="0.85" stroke="#e69d2e" strokeWidth={1} />
+                </svg>
+              </div>
+              {/* Play icon - black, centered with front frame */}
+              <div className="absolute transition-transform duration-300 group-hover:scale-110 group-hover:-translate-x-[0.75px] group-hover:translate-y-[0.75px]" style={{ top: '8.5px', left: '5px' }}>
+                <svg className="w-[8px] h-[8px]" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" fill="#000000" />
+                </svg>
+              </div>
+            </div>
           </div>
-          {/* Text */}
-          <span className="text-white/90 text-sm font-medium">
-            Trailers
+
+          {/* Text - slightly bolder */}
+          <span className="relative text-white/90 text-[15px] font-semibold tracking-wide group-hover:text-white transition-colors duration-300">
+            Previews
           </span>
         </div>
       </Link>

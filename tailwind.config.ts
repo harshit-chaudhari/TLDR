@@ -25,6 +25,20 @@ const config: Config = {
         sans: ["var(--font-red-hat-display)", "system-ui", "sans-serif"],
         mono: ["var(--font-geist-mono)", "monospace"],
       },
+      keyframes: {
+        'fade-in': {
+          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'progress-circle': {
+          '0%': { strokeDashoffset: '50.27' },
+          '100%': { strokeDashoffset: '0' },
+        },
+      },
+      animation: {
+        'fade-in': 'fade-in 0.3s ease-out',
+        'progress-circle': 'progress-circle 1s linear forwards',
+      },
     },
   },
   plugins: [],

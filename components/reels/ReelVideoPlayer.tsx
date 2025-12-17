@@ -13,6 +13,9 @@ export interface ReelVideoPlayerHandle {
   togglePlayPause: () => void;
   isPlaying: () => boolean;
   pause: () => void;
+  getProgress: () => number;
+  getDuration: () => number;
+  seekTo: (percentage: number) => void;
 }
 
 interface ReelVideoPlayerProps {
@@ -20,6 +23,7 @@ interface ReelVideoPlayerProps {
   isVisible: boolean;
   isMuted: boolean;
   onMuteChange: (muted: boolean) => void;
+  onVideoEnd?: () => void;
 }
 
 export const ReelVideoPlayer = forwardRef<ReelVideoPlayerHandle, ReelVideoPlayerProps>(({
@@ -27,14 +31,24 @@ export const ReelVideoPlayer = forwardRef<ReelVideoPlayerHandle, ReelVideoPlayer
   isVisible,
   isMuted,
   onMuteChange,
+  onVideoEnd,
 }, ref) => {
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
   const playerId = useRef(`peek-player-${videoId}-${Math.random().toString(36).substr(2, 9)}`);
   const isMutedRef = useRef(isMuted);
   const wasVisibleRef = useRef(false);
+  const onVideoEndRef = useRef(onVideoEnd);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Keep onVideoEnd ref in sync
+  useEffect(() => {
+    onVideoEndRef.current = onVideoEnd;
+  }, [onVideoEnd]);
 
   // Keep muted ref in sync
   useEffect(() => {
@@ -64,7 +78,19 @@ export const ReelVideoPlayer = forwardRef<ReelVideoPlayerHandle, ReelVideoPlayer
     },
     isPlaying: () => isPlaying,
     pause: forcePause,
-  }), [isReady, isPlaying, forcePause]);
+    getProgress: () => progress,
+    getDuration: () => duration,
+    seekTo: (percentage: number) => {
+      if (!playerRef.current || !isReady || duration === 0) return;
+      try {
+        const seekTime = (percentage / 100) * duration;
+        playerRef.current.seekTo(seekTime, true);
+        setProgress(percentage);
+      } catch (e) {
+        // Ignore
+      }
+    },
+  }), [isReady, isPlaying, forcePause, progress, duration]);
 
   // Load YouTube IFrame API
   useEffect(() => {
@@ -91,8 +117,7 @@ export const ReelVideoPlayer = forwardRef<ReelVideoPlayerHandle, ReelVideoPlayer
           showinfo: 0,
           fs: 0,
           playsinline: 1,
-          loop: 1,
-          playlist: videoId,
+          loop: 0,
           mute: 0,
           iv_load_policy: 3,
           cc_load_policy: 0,
@@ -104,6 +129,11 @@ export const ReelVideoPlayer = forwardRef<ReelVideoPlayerHandle, ReelVideoPlayer
           onStateChange: (event: any) => {
             const playing = event.data === window.YT.PlayerState.PLAYING;
             setIsPlaying(playing);
+
+            // Detect video end
+            if (event.data === window.YT.PlayerState.ENDED) {
+              onVideoEndRef.current?.();
+            }
           },
         },
       });
@@ -219,6 +249,50 @@ export const ReelVideoPlayer = forwardRef<ReelVideoPlayerHandle, ReelVideoPlayer
     }
   }, [isMuted, isReady, isVisible]);
 
+  // Track video progress
+  useEffect(() => {
+    if (!isReady || !isVisible || !isPlaying) {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Get duration once
+    if (duration === 0 && playerRef.current) {
+      try {
+        const dur = playerRef.current.getDuration();
+        if (dur > 0) setDuration(dur);
+      } catch (e) {
+        // Ignore
+      }
+    }
+
+    // Update progress every 100ms
+    progressIntervalRef.current = setInterval(() => {
+      if (playerRef.current) {
+        try {
+          const currentTime = playerRef.current.getCurrentTime();
+          const totalDuration = playerRef.current.getDuration();
+          if (totalDuration > 0) {
+            setProgress((currentTime / totalDuration) * 100);
+            if (duration === 0) setDuration(totalDuration);
+          }
+        } catch (e) {
+          // Ignore
+        }
+      }
+    }, 100);
+
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+    };
+  }, [isReady, isVisible, isPlaying, duration]);
+
   const handleClick = useCallback(() => {
     if (!playerRef.current || !isReady) return;
 
@@ -229,14 +303,32 @@ export const ReelVideoPlayer = forwardRef<ReelVideoPlayerHandle, ReelVideoPlayer
     }
   }, [isPlaying, isReady]);
 
+  // Blur iframe when clicked to prevent it from capturing keyboard events
+  const handleContainerClick = useCallback(() => {
+    // Remove focus from iframe so keyboard shortcuts work
+    const iframe = containerRef.current?.querySelector('iframe');
+    if (iframe) {
+      iframe.blur();
+    }
+    // Also blur any active element
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    handleClick();
+  }, [handleClick]);
+
   return (
     <div
       ref={containerRef}
       className="relative w-full h-full cursor-pointer"
-      onClick={handleClick}
+      onClick={handleContainerClick}
+      tabIndex={-1}
     >
       {/* YouTube Player Container */}
-      <div id={playerId.current} className="w-full h-full" />
+      <div id={playerId.current} className="w-full h-full pointer-events-none" />
+
+      {/* Invisible overlay to capture clicks and prevent iframe interaction */}
+      <div className="absolute inset-0" />
 
       {/* Loading State */}
       {!isReady && (

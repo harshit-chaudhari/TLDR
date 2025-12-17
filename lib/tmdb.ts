@@ -29,10 +29,10 @@ const headers = {
   'Content-Type': 'application/json',
 };
 
-// Platform ID mapping (TMDB watch provider IDs)
-// Note: JioHotstar removed from provider filter as TMDB doesn't have reliable data for it
+// Platform ID mapping (TMDB watch provider IDs for India region)
+// Updated Dec 2025 with current provider IDs from TMDB API
 const platformIds: Record<string, number | undefined> = {
-  'JioHotstar': undefined, // No provider filter - TMDB doesn't have good data
+  'JioHotstar': 2336,
   'NETFLIX': 8,
   'prime video': 119,
   'Disney+': 337,
@@ -40,7 +40,7 @@ const platformIds: Record<string, number | undefined> = {
   'Apple TV': 350,
   'Zee5': 232,
   'SonyLIV': 237,
-  'Lionsgate Play': 546,
+  'Lionsgate Play': 561,
   'MX Player': 515,
   'Sun NXT': 309,
 };

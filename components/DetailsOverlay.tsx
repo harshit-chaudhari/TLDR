@@ -55,6 +55,12 @@ export default function DetailsOverlay({ items, initialIndex, mediaType, onClose
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
 
+  // Layered animation states
+  const [showBackdrop, setShowBackdrop] = useState(false);
+  const [showGradient, setShowGradient] = useState(false);
+  const [showContent, setShowContent] = useState(false);
+  const [showDetails, setShowDetailsSection] = useState(false);
+
   const currentItem = items[currentIndex];
   const id = currentItem?.id;
   // Use the current item's media_type if available, fall back to the prop
@@ -96,6 +102,31 @@ export default function DetailsOverlay({ items, initialIndex, mediaType, onClose
       scrollRef.current.scrollTop = 0;
     }
   }, [currentMediaType, id]);
+
+  // Layered entrance animation - triggered when details are loaded
+  useEffect(() => {
+    if (!details || loading) {
+      // Reset all layers when loading
+      setShowBackdrop(false);
+      setShowGradient(false);
+      setShowContent(false);
+      setShowDetailsSection(false);
+      return;
+    }
+
+    // Sequence the layers with deliberate timing
+    const backdropTimer = setTimeout(() => setShowBackdrop(true), 100);
+    const gradientTimer = setTimeout(() => setShowGradient(true), 400);
+    const contentTimer = setTimeout(() => setShowContent(true), 600);
+    const detailsTimer = setTimeout(() => setShowDetailsSection(true), 800);
+
+    return () => {
+      clearTimeout(backdropTimer);
+      clearTimeout(gradientTimer);
+      clearTimeout(contentTimer);
+      clearTimeout(detailsTimer);
+    };
+  }, [details, loading]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -330,22 +361,42 @@ export default function DetailsOverlay({ items, initialIndex, mediaType, onClose
         {/* Scrollable Content */}
         <div ref={scrollRef} className="h-full overflow-y-auto">
           {/* Hero Section - Backdrop focused */}
-          <div className="relative h-[60vh] lg:h-[70vh]">
-            {/* Backdrop Image */}
-            <Image
-              src={getBackdropUrl(details.backdrop_path, 'original')}
-              alt={title}
-              fill
-              className="object-cover"
-              priority
+          <div className="relative h-[60vh] lg:h-[70vh] overflow-hidden">
+            {/* Backdrop Image - Layer 1 */}
+            <div
+              className="absolute inset-0 transition-all duration-700 ease-out"
+              style={{
+                opacity: showBackdrop ? 1 : 0,
+                transform: showBackdrop ? 'scale(1)' : 'scale(1.05)',
+              }}
+            >
+              <Image
+                src={getBackdropUrl(details.backdrop_path, 'original')}
+                alt={title}
+                fill
+                className="object-cover"
+                priority
+              />
+            </div>
+
+            {/* Gradient overlays - Layer 2 */}
+            <div
+              className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/60 to-transparent transition-opacity duration-500 ease-out"
+              style={{ opacity: showGradient ? 1 : 0 }}
+            />
+            <div
+              className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a]/80 via-transparent to-transparent transition-opacity duration-500 ease-out"
+              style={{ opacity: showGradient ? 1 : 0 }}
             />
 
-            {/* Gradient overlays */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/60 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a]/80 via-transparent to-transparent" />
-
-            {/* Content over backdrop */}
-            <div className="absolute bottom-0 left-0 right-0 p-6 lg:px-20 lg:pb-12">
+            {/* Content over backdrop - Layer 3 */}
+            <div
+              className="absolute bottom-0 left-0 right-0 p-6 lg:px-20 lg:pb-12 transition-all duration-500 ease-out"
+              style={{
+                opacity: showContent ? 1 : 0,
+                transform: showContent ? 'translateY(0)' : 'translateY(30px)',
+              }}
+            >
               <div className="max-w-3xl">
                 {/* Favorite & Share - Above title */}
                 <div className="flex items-center gap-2 mb-6">
@@ -451,8 +502,14 @@ export default function DetailsOverlay({ items, initialIndex, mediaType, onClose
             </div>
           </div>
 
-          {/* Details Section */}
-          <div className="px-6 lg:px-20 py-8 lg:py-10 space-y-10">
+          {/* Details Section - Layer 4 */}
+          <div
+            className="px-6 lg:px-20 py-8 lg:py-10 space-y-10 transition-all duration-500 ease-out"
+            style={{
+              opacity: showDetails ? 1 : 0,
+              transform: showDetails ? 'translateY(0)' : 'translateY(20px)',
+            }}
+          >
             {/* Overview */}
             {details.overview && (
               <div className="max-w-3xl">

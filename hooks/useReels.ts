@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getTrending, getPopular, getVideos, getWatchProviders, getDetails, getPlatformDeeplink } from '@/lib/tmdb';
 
 export interface ReelItem {
@@ -29,43 +29,82 @@ interface UseReelsReturn {
   loadMore: () => Promise<void>;
 }
 
+// TMDB API base URL and headers for direct API calls
+const TMDB_ACCESS_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI3NTMzYWViZGZmMzAwYzcwODM1YjI1YmUxZTIyNjhmZCIsIm5iZiI6MTc2MzQ1OTE5NC4wNjcwMDAyLCJzdWIiOiI2OTFjNDA3YTQxMTZkZGZiYzg2ZDk5ZTEiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.0tSkocbqygvXP1jeQJtuOGBzJcqQZT-YgmmB74KwYC0';
+const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+
+const headers = {
+  'Authorization': `Bearer ${TMDB_ACCESS_TOKEN}`,
+  'Content-Type': 'application/json',
+};
+
+// Fetch discover content with pagination for infinite scrolling
+async function getDiscoverPage(mediaType: 'movie' | 'tv', page: number) {
+  const response = await fetch(
+    `${TMDB_BASE_URL}/discover/${mediaType}?include_adult=false&include_video=false&language=en-US&page=${page}&sort_by=popularity.desc&vote_count.gte=100`,
+    { headers }
+  );
+  const data = await response.json();
+  return data.results || [];
+}
+
 export function useReels(): UseReelsReturn {
   const [items, setItems] = useState<ReelItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const seenIds = useRef<Set<string>>(new Set()); // Track seen content to avoid duplicates
 
   const fetchReels = useCallback(async (pageNum: number) => {
     try {
-      // Fetch mix of trending movies and TV shows
-      const [trendingMovies, trendingTV, popularMovies, popularTV] = await Promise.all([
-        getTrending('movie', 'week'),
-        getTrending('tv', 'week'),
-        getPopular('movie'),
-        getPopular('tv'),
-      ]);
+      // For first page, mix trending and popular for variety
+      // For subsequent pages, use discover API with pagination for infinite content
+      let allContent: any[] = [];
 
-      // Combine and shuffle content
-      const allContent = [
-        ...trendingMovies.map((m: any) => ({ ...m, mediaType: 'movie' as const })),
-        ...trendingTV.map((t: any) => ({ ...t, mediaType: 'tv' as const })),
-        ...popularMovies.slice(0, 10).map((m: any) => ({ ...m, mediaType: 'movie' as const })),
-        ...popularTV.slice(0, 10).map((t: any) => ({ ...t, mediaType: 'tv' as const })),
-      ];
+      if (pageNum === 1) {
+        // Initial load: mix trending and popular
+        const [trendingMovies, trendingTV, popularMovies, popularTV] = await Promise.all([
+          getTrending('movie', 'week'),
+          getTrending('tv', 'week'),
+          getPopular('movie'),
+          getPopular('tv'),
+        ]);
 
-      // Remove duplicates by ID
-      const uniqueContent = allContent.filter(
-        (item, index, self) =>
-          index === self.findIndex((t) => t.id === item.id && t.mediaType === item.mediaType)
-      );
+        allContent = [
+          ...trendingMovies.map((m: any) => ({ ...m, mediaType: 'movie' as const })),
+          ...trendingTV.map((t: any) => ({ ...t, mediaType: 'tv' as const })),
+          ...popularMovies.slice(0, 10).map((m: any) => ({ ...m, mediaType: 'movie' as const })),
+          ...popularTV.slice(0, 10).map((t: any) => ({ ...t, mediaType: 'tv' as const })),
+        ];
+      } else {
+        // Subsequent pages: use discover API for infinite content
+        // TMDB discover API supports up to 500 pages
+        const discoverPage = Math.ceil(pageNum / 2); // Spread across more TMDB pages
+        const [discoverMovies, discoverTV] = await Promise.all([
+          getDiscoverPage('movie', discoverPage),
+          getDiscoverPage('tv', discoverPage),
+        ]);
 
-      // Shuffle array
+        allContent = [
+          ...discoverMovies.map((m: any) => ({ ...m, mediaType: 'movie' as const })),
+          ...discoverTV.map((t: any) => ({ ...t, mediaType: 'tv' as const })),
+        ];
+      }
+
+      // Remove duplicates by ID (including previously seen items)
+      const uniqueContent = allContent.filter((item) => {
+        const key = `${item.mediaType}-${item.id}`;
+        if (seenIds.current.has(key)) return false;
+        seenIds.current.add(key);
+        return true;
+      });
+
+      // Shuffle array for variety
       const shuffled = uniqueContent.sort(() => Math.random() - 0.5);
 
-      // Paginate - 10 items per page
-      const startIdx = (pageNum - 1) * 10;
-      const pageContent = shuffled.slice(startIdx, startIdx + 10);
+      // Take up to 10 items per fetch
+      const pageContent = shuffled.slice(0, 10);
 
       // Fetch trailers for each item in parallel
       const reelsWithTrailers = await Promise.all(
@@ -157,7 +196,8 @@ export function useReels(): UseReelsReturn {
       try {
         const reels = await fetchReels(1);
         setItems(reels);
-        setHasMore(reels.length >= 5);
+        // Always has more - infinite feed (TMDB discover API supports 500 pages)
+        setHasMore(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
@@ -169,25 +209,28 @@ export function useReels(): UseReelsReturn {
   }, [fetchReels]);
 
   const loadMore = useCallback(async () => {
-    if (isLoading || !hasMore) return;
+    if (isLoading) return;
 
     setIsLoading(true);
     try {
       const nextPage = page + 1;
       const newReels = await fetchReels(nextPage);
 
-      if (newReels.length === 0) {
-        setHasMore(false);
-      } else {
+      if (newReels.length > 0) {
         setItems((prev) => [...prev, ...newReels]);
         setPage(nextPage);
       }
+      // Keep hasMore true - infinite feed
+      // TMDB discover API supports up to 500 pages per media type
+      // That's 500 * 20 * 2 = 20,000 items theoretical max
+      // We'll never realistically reach this limit
+      setHasMore(nextPage < 500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, hasMore, page, fetchReels]);
+  }, [isLoading, page, fetchReels]);
 
   return { items, isLoading, error, hasMore, loadMore };
 }
